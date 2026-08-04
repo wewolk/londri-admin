@@ -2,7 +2,7 @@ import { api } from './client';
 import type {
   ApiOk, Paginated, Branch, StaffRole, Staff, Service, MembershipTier, Promotion,
   Order, OrderStatus, PaymentMethod, Membership, MembershipBalanceLog, MembershipTransaction,
-  AttendanceQrCode, StaffAttendance, AttendanceType, AdminUser,
+  AttendanceQrCode, StaffAttendance, AttendanceType, AdminUser, BranchWifiCredential, WifiBand,
   DashboardSummary, RevenueByCashier, RevenueByMonth, MembershipSales, MostUsedPromotion,
 } from '../types';
 
@@ -72,8 +72,29 @@ export const attendanceApi = {
   list: (params: { staffId?: string; branchId?: string; attendanceType?: AttendanceType; date?: string; page?: number; limit?: number }) =>
     api.get<ApiOk<Paginated<StaffAttendance>>>('/attendance', { params }).then(unwrap),
   qrCodes: () => api.get<ApiOk<AttendanceQrCode[]>>('/attendance/qr-codes').then(unwrap),
-  createQr: (branchId: string, validHours: number) =>
-    api.post<ApiOk<AttendanceQrCode>>('/attendance/qr-codes', { branchId, validHours }).then(unwrap),
+  createQr: (branchId: string) =>
+    api.post<ApiOk<AttendanceQrCode>>('/attendance/qr-codes', { branchId }).then(unwrap),
+  deactivateQr: (id: string) =>
+    api.put<ApiOk<AttendanceQrCode>>(`/attendance/qr-codes/${id}/deactivate`).then(unwrap),
+};
+
+export interface WifiCredentialPayload {
+  branchId: string;
+  ssid: string;
+  bssids: string[];
+  band?: WifiBand;
+  isActive?: boolean;
+}
+
+export const attendanceWifiApi = {
+  list: (branchId: string, active?: boolean) =>
+    api.get<ApiOk<BranchWifiCredential[]>>('/attendance/wifi', { params: { branchId, active } }).then(unwrap),
+  create: (body: WifiCredentialPayload) =>
+    api.post<ApiOk<BranchWifiCredential>>('/attendance/wifi', body).then(unwrap),
+  update: (id: string, body: WifiCredentialPayload) =>
+    api.put<ApiOk<BranchWifiCredential>>(`/attendance/wifi/${id}`, body).then(unwrap),
+  deactivate: (id: string, branchId: string) =>
+    api.delete<ApiOk<BranchWifiCredential>>(`/attendance/wifi/${id}`, { data: { branchId } }).then(unwrap),
 };
 
 // Dashboard

@@ -33,6 +33,12 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Jangan logout pada gagal network/CORS — itu bukan masalah auth.
+    if (!axios.isAxiosError(error) || !error.code) {
+      return Promise.reject(error);
+    }
+    // Hanya logout pada HTTP 401 sungguhan dari server.
+    // Network/CORS failure (error.response undefined) tidak diperlakukan sbg logout.
     if (error.response?.status === 401 && typeof window !== 'undefined') {
       localStorage.removeItem('londri_token');
       localStorage.removeItem('londri_user');
