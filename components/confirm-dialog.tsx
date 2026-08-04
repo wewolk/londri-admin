@@ -1,7 +1,7 @@
 'use client';
-export default function ConfirmDialog({ open, title, message, loading, onCancel, onConfirm }: {
+export default function ConfirmDialog({ open, title, message, loading, confirmLabel = 'Hapus', onCancel, onConfirm }: {
   open: boolean; title: string; message?: string; loading?: boolean;
-  onCancel: () => void; onConfirm: () => void;
+  confirmLabel?: string; onCancel: () => void; onConfirm: () => void;
 }) {
   if (!open) return null;
   return (
@@ -14,7 +14,7 @@ export default function ConfirmDialog({ open, title, message, loading, onCancel,
           <button onClick={onCancel} className="min-h-[44px] rounded-md border border-border-subtle dark:border-outline-variant/25 font-medium active:bg-surface-container-low dark:active:bg-white/5">Batal</button>
           <button onClick={onConfirm} disabled={loading}
             className="min-h-[44px] rounded-md bg-error font-medium text-on-error transition-colors active:bg-on-error-container disabled:opacity-50">
-            {loading ? 'Menghapus…' : 'Hapus'}
+            {loading ? `${confirmLabel}…` : confirmLabel}
           </button>
         </div>
       </div>

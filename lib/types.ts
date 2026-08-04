@@ -4,6 +4,7 @@ export type PaymentMethod = 'CASH' | 'TRANSFER' | 'QRIS' | 'MEMBERSHIP';
 export type MembershipStatus = 'ACTIVE' | 'EXPIRED' | 'BLOCKED';
 export type DiscountType = 'PERCENTAGE' | 'FIXED_AMOUNT';
 export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT';
+export type WifiBand = '2.4GHz' | '5GHz';
 export type BalanceLogType = 'USAGE' | 'ADJUSTMENT' | 'REFUND';
 
 // ===== API envelope =====
@@ -203,10 +204,10 @@ export interface AttendanceQrCode {
   id: string;
   branchId: string;
   qrToken: string;
-  validFrom: string;
-  validUntil: string;
+  isActive: boolean;
   createdAt: string;
   branch?: { id: string; name: string };
+  _count?: { attendances: number };
 }
 
 export interface StaffAttendance {
@@ -219,10 +220,24 @@ export interface StaffAttendance {
   latitude: string | null;
   longitude: string | null;
   notes: string | null;
+  ssid: string | null;
+  bssid: string | null;
   createdAt: string;
   staff?: { id: string; fullName: string };
   branch?: { id: string; name: string };
   attendanceQrCode?: { id: string; qrToken: string };
+}
+
+export interface BranchWifiCredential {
+  id: string;
+  branchId: string;
+  ssid: string;
+  bssids: string[];
+  band: WifiBand | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  branch?: { id: string; name: string };
 }
 
 // ===== Dashboard shapes =====

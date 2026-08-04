@@ -37,9 +37,14 @@ export default function AttendancePage() {
   return (
     <>
       <PageHeader title="Presensi" back right={
-        <Link href="/attendance/qr" className="flex h-10 items-center rounded-md bg-primary px-3 font-body-md text-body-md font-semibold text-on-primary transition-colors active:bg-on-primary-container">
-          + QR
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/attendance/wifi" className="flex h-10 items-center rounded-md border border-border-subtle px-3 font-body-md text-body-md font-semibold text-primary transition-colors active:bg-surface-container-low">
+            Wi-Fi
+          </Link>
+          <Link href="/attendance/qr" className="flex h-10 items-center rounded-md bg-primary px-3 font-body-md text-body-md font-semibold text-on-primary transition-colors active:bg-on-primary-container">
+            + QR
+          </Link>
+        </div>
       } />
       <div className="glass-strong space-y-2 px-4 py-3">
         <div className="grid grid-cols-2 gap-2">
