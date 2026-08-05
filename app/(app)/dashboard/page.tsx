@@ -83,7 +83,7 @@ export default function DashboardPage() {
           {[
             { label: 'History Order', Icon: ShoppingCart, href: '/orders' },
             { label: 'Laporan', Icon: ChartBar, href: '/reports' },
-            { label: 'Scan QR', Icon: QrCode, href: '/attendance/qr' },
+            { label: 'QR Presensi', Icon: QrCode, href: '/attendance/qr' },
           ].map((a) => (
             <Link key={a.label} href={a.href}
               className="flex flex-col items-center gap-2 rounded-xl border border-border-subtle dark:border-outline-variant/20 bg-surface-container-lowest dark:bg-inverse-surface p-4 shadow-card transition-colors active:bg-surface-container-low dark:active:bg-white/5">
