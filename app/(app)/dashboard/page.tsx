@@ -81,7 +81,7 @@ export default function DashboardPage() {
         {/* Quick Actions — dari Stitch reference */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Buat Order', Icon: ShoppingCart, href: '/orders' },
+            { label: 'History Order', Icon: ShoppingCart, href: '/orders' },
             { label: 'Laporan', Icon: ChartBar, href: '/reports' },
             { label: 'Scan QR', Icon: QrCode, href: '/attendance/qr' },
           ].map((a) => (
