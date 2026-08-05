@@ -76,6 +76,14 @@ export interface Service {
   updatedAt: string;
 }
 
+export interface Perfume {
+  id: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface MembershipTier {
   id: string;
   name: string;

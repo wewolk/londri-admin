@@ -1,6 +1,6 @@
 import { api } from './client';
 import type {
-  ApiOk, Paginated, Branch, StaffRole, Staff, Service, MembershipTier, Promotion,
+  ApiOk, Paginated, Branch, StaffRole, Staff, Service, Perfume, MembershipTier, Promotion,
   Order, OrderStatus, PaymentMethod, Membership, MembershipBalanceLog, MembershipTransaction,
   AttendanceQrCode, StaffAttendance, AttendanceType, AdminUser, BranchWifiCredential, WifiBand,
   DashboardSummary, RevenueByCashier, RevenueByMonth, MembershipSales, MostUsedPromotion,
@@ -40,6 +40,7 @@ export const branchesApi = crud<Branch>('/branches');
 export const staffRolesApi = crud<StaffRole>('/staff-roles');
 export const staffsApi = crud<Staff>('/staffs');
 export const servicesApi = crud<Service>('/services');
+export const perfumesApi = crud<Perfume>('/perfume');
 export const membershipTiersApi = crud<MembershipTier>('/membership-tiers');
 export const promotionsApi = crud<Promotion>('/promotions');
 
