@@ -51,7 +51,7 @@ export default function OrdersPage() {
 
   return (
     <>
-      <PageHeader title="Order" right={
+      <PageHeader title="Order History" right={
         <button onClick={() => { setDraft(filters); setFilterOpen(true); }}
           className="relative flex h-10 w-10 items-center justify-center rounded-full active:bg-surface-container-low dark:active:bg-white/5" aria-label="Filter">
           <FunnelSimple size={20} weight={activeCount > 0 ? 'fill' : 'regular'} className={activeCount > 0 ? 'text-primary dark:text-inverse-primary' : undefined} />
