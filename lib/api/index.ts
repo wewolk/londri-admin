@@ -1,9 +1,10 @@
 import { api } from './client';
 import type {
-  ApiOk, Paginated, Branch, StaffRole, Staff, Service, MembershipTier, Promotion,
+  ApiOk, Paginated, Branch, StaffRole, Staff, Service, Perfume, MembershipTier, Promotion,
   Order, OrderStatus, PaymentMethod, Membership, MembershipBalanceLog, MembershipTransaction,
   AttendanceQrCode, StaffAttendance, AttendanceType, AdminUser, BranchWifiCredential, WifiBand,
   DashboardSummary, RevenueByCashier, RevenueByMonth, MembershipSales, MostUsedPromotion,
+  ClosingReport,
 } from '../types';
 
 const unwrap = <T>(r: { data: ApiOk<T> }) => r.data.data;
@@ -40,6 +41,7 @@ export const branchesApi = crud<Branch>('/branches');
 export const staffRolesApi = crud<StaffRole>('/staff-roles');
 export const staffsApi = crud<Staff>('/staffs');
 export const servicesApi = crud<Service>('/services');
+export const perfumesApi = crud<Perfume>('/perfume');
 export const membershipTiersApi = crud<MembershipTier>('/membership-tiers');
 export const promotionsApi = crud<Promotion>('/promotions');
 
@@ -48,12 +50,44 @@ export interface OrderFilters {
   branchId?: string; staffId?: string; status?: OrderStatus; paymentMethod?: PaymentMethod;
   search?: string; dateFrom?: string; dateTo?: string; page?: number; limit?: number;
 }
+
+/* Backend memakai enum Prisma (PROCESSING/DONE/PICKED_UP/CANCELLED) sedangkan
+   UI memakai istilah Indonesia (DI_PROSES/SELESAI/DIAMBIL/CANCELLED). Tanpa
+   penerjemahan ini STATUS_LABEL bernilai undefined (kolom Status kosong) dan
+   revenue selalu Rp 0 karena tidak ada order yang cocok SELESAI/DIAMBIL. */
+const STATUS_FROM_API: Record<string, OrderStatus> = {
+  PROCESSING: 'DI_PROSES',
+  DONE: 'SELESAI',
+  PICKED_UP: 'DIAMBIL',
+  CANCELLED: 'CANCELLED',
+};
+const STATUS_TO_API: Record<OrderStatus, string> = {
+  DI_PROSES: 'PROCESSING',
+  SELESAI: 'DONE',
+  DIAMBIL: 'PICKED_UP',
+  CANCELLED: 'CANCELLED',
+};
+
+/** Terjemahkan status order dari bentuk backend ke bentuk UI. Idempoten:
+ *  nilai yang sudah berbentuk UI dibiarkan apa adanya. */
+function decodeOrder(o: Order): Order {
+  const raw = o?.status as unknown as string;
+  if (!raw || !(raw in STATUS_FROM_API)) return o;
+  return { ...o, status: STATUS_FROM_API[raw] };
+}
+
 export const ordersApi = {
   list: (params: OrderFilters) =>
-    api.get<ApiOk<Paginated<Order>>>('/orders', { params }).then(unwrap),
-  get: (id: string) => api.get<ApiOk<Order>>(`/orders/${id}`).then(unwrap),
+    api.get<ApiOk<Paginated<Order>>>('/orders', {
+      params: { ...params, status: params.status ? STATUS_TO_API[params.status] : undefined },
+    })
+      .then(unwrap)
+      .then((p) => ({ ...p, items: (p.items || []).map(decodeOrder) })),
+  get: (id: string) => api.get<ApiOk<Order>>(`/orders/${id}`).then(unwrap).then(decodeOrder),
   updateStatus: (id: string, status: OrderStatus, notes?: string) =>
-    api.patch<ApiOk<Order>>(`/orders/${id}/status`, { status, notes }).then(unwrap),
+    api.patch<ApiOk<Order>>(`/orders/${id}/status`, { status: STATUS_TO_API[status] ?? status, notes })
+      .then(unwrap)
+      .then(decodeOrder),
 };
 
 // Memberships
@@ -104,4 +138,9 @@ export const dashboardApi = {
   revenueByMonth: () => api.get<ApiOk<RevenueByMonth[]>>('/dashboard/revenue-by-month').then(unwrap),
   membershipSales: () => api.get<ApiOk<MembershipSales>>('/dashboard/membership-sales').then(unwrap),
   mostUsedPromotions: () => api.get<ApiOk<MostUsedPromotion[]>>('/dashboard/most-used-promotions').then(unwrap),
+  /* Laporan closing: seluruh agregasi (kas masuk, piutang, rekonsiliasi)
+     dihitung di PostgreSQL, jadi angkanya memakai amountPaid yang sebenarnya
+     — bukan hasil menjumlah ulang totalAmount di sisi klien. */
+  closingReport: (params: { dateFrom: string; dateTo: string; branchId?: string }) =>
+    api.get<ApiOk<ClosingReport>>('/dashboard/report', { params }).then(unwrap),
 };

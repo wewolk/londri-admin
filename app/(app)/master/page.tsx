@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import PageHeader from '@/components/page-header';
-import { House, Users, ShieldCheck, TShirt, Crown, Tag, QrCode, ChartLineUp, Question, CaretRight } from '@phosphor-icons/react';
+import { House, Users, ShieldCheck, TShirt, Drop, Crown, Tag, QrCode, ChartLineUp, Question, CaretRight } from '@phosphor-icons/react';
 
 /* Sebelumnya tiap baris punya hue sendiri — sky, violet, emerald, amber, rose,
  * teal, indigo, slate. Sembilan warna untuk sembilan tujuan navigasi yang
@@ -17,6 +17,7 @@ const modules = [
   { href: '/staffs', label: 'Staff', desc: 'Akun kasir & karyawan', Icon: Users },
   { href: '/staff-roles', label: 'Role Staff', desc: 'Hak akses staff', Icon: ShieldCheck },
   { href: '/services', label: 'Layanan', desc: 'Jenis cucian & harga', Icon: TShirt },
+  { href: '/perfumes', label: 'Parfum', desc: 'Kelola pilihan aroma laundry', Icon: Drop },
   { href: '/membership-tiers', label: 'Tier Membership', desc: 'Paket member', Icon: Crown },
   { href: '/promotions', label: 'Promo', desc: 'Kode diskon', Icon: Tag },
   { href: '/attendance', label: 'Presensi', desc: 'QR & log absensi', Icon: QrCode },
