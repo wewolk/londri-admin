@@ -148,7 +148,7 @@ export default function ClosingCard({ report, dateLabel }: { report: ClosingRepo
       </div>
 
       {/* Cocokkan fisik laci */}
-      <div className="border-t border-border-subtle dark:border-outline-variant/20 px-md py-3">
+      {/* <div className="border-t border-border-subtle dark:border-outline-variant/20 px-md py-3">
         <label className="block">
           <span className="mb-1.5 flex items-center gap-1.5 font-label-md text-label-md uppercase tracking-wide text-outline dark:text-outline-variant">
             <Money size={14} weight="duotone" /> Hitung fisik laci
@@ -177,7 +177,7 @@ export default function ClosingCard({ report, dateLabel }: { report: ClosingRepo
               : <><WarningCircle size={15} weight="fill" /> {cashDiff > 0 ? 'Lebih' : 'Kurang'} {formatRupiah(Math.abs(cashDiff))}</>}
           </p>
         )}
-      </div>
+      </div> */}
     </section>
   );
 }
