@@ -1,19 +1,21 @@
 'use client';
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
-import { branchesApi } from '@/lib/api';
+import { branchesApi, dashboardApi } from '@/lib/api';
 import { fetchOrdersInPeriod, computeStats, periodFromPreset, PERIOD_LABEL } from '@/lib/reports';
 import type { PeriodPreset, Period, ReportStats } from '@/lib/reports';
+import type { ClosingReport } from '@/lib/types';
 import { exportCsv, exportXlsx, type Sheet } from '@/lib/export';
 import { formatRupiah, formatTanggal } from '@/lib/utils';
 import { STATUS_LABEL, PAYMENT_LABEL } from '@/lib/labels';
 import PageHeader from '@/components/page-header';
+import ClosingCard from '@/components/closing-card';
 import { useTheme } from '@/lib/theme';
 import { toast } from '@/hooks/useToast';
 import {
   TrendUp, Receipt, Wallet, Users, ChartBar, DownloadSimple,
-  FileCsv, FileXls, FilePdf, X, Funnel, Info,
+  FileCsv, FileXls, FilePdf, X, Funnel, Info, ArrowsClockwise, UserCircle, WarningCircle,
 } from '@phosphor-icons/react';
 
 const BarChart = dynamic(() => import('recharts').then(m => m.BarChart), { ssr: false });
@@ -26,22 +28,38 @@ const ResponsiveContainer = dynamic(() => import('recharts').then(m => m.Respons
 
 const PRESETS: PeriodPreset[] = ['today', '7d', '30d', 'month', 'custom'];
 
+const CLOSING_KEY = 'londri_last_closing';
+
 function fileStamp(p: Period) {
   return p.from === p.to ? p.from : `${p.from}_${p.to}`;
 }
 
 // Bangun sheet-sheet untuk ekspor multi-tab (dipakai XLSX; CSV pakai sheet ringkasan+transaksi digabung).
-function buildSheets(s: ReportStats): Sheet[] {
+function buildSheets(s: ReportStats, closing?: ClosingReport): Sheet[] {
+  const num = (v: string | number | null | undefined) => Number(v ?? 0);
   const ringkasan: Sheet = {
     name: 'Ringkasan',
     columns: ['Metrik', 'Nilai'],
     rows: [
       ['Periode', `${s.period.from} s/d ${s.period.to}`],
-      ['Total Revenue', s.totalRevenue],
+      ...(closing ? [
+        ['— CLOSING —', ''],
+        ['Nilai nota', num(closing.summary.newOrderValue)],
+        ['Belum dibayar', num(closing.summary.outstanding)],
+        ['Dibayar saldo member', num(closing.membershipUsed.amount)],
+        ['Seharusnya diterima', num(closing.summary.newOrderValue) - num(closing.summary.outstanding) - num(closing.membershipUsed.amount)],
+        ['Tercatat diterima', num(closing.reconciliation.paidOnNewOrders)],
+        ['Selisih', num(closing.reconciliation.difference)],
+        ['Status closing', closing.reconciliation.isBalanced ? 'COCOK' : 'SELISIH'],
+        ['— UANG MASUK —', ''],
+        ...closing.cashIn.byMethod.map((m) => [m.method, num(m.amount)] as (string | number)[]),
+        ['Pelunasan nota lama', num(closing.cashIn.fromPreviousOrders)],
+        ['Total kas masuk', num(closing.cashIn.total)],
+        ['— NOTA —', ''],
+      ] as (string | number)[][] : []),
       ['Total Order', s.totalOrders],
       ['Order Selesai', s.completedOrders],
       ['Order Dibatalkan', s.cancelledOrders],
-      ['Rata-rata Nilai Order', Math.round(s.avgOrderValue)],
       ['Total Diskon', s.totalDiscount],
       ['Pelanggan Unik', s.uniqueCustomers],
       ['Tingkat Penyelesaian (%)', Math.round(s.completionRate * 100)],
@@ -90,11 +108,14 @@ function buildSheets(s: ReportStats): Sheet[] {
 export default function ReportsPage() {
   const { resolved } = useTheme();
   const isDark = resolved === 'dark';
-  const [preset, setPreset] = useState<PeriodPreset>('30d');
+  const queryClient = useQueryClient();
+  // Closing adalah workflow harian, jadi halaman dibuka langsung ke hari ini.
+  const [preset, setPreset] = useState<PeriodPreset>('today');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [branchId, setBranchId] = useState('');
   const [exportOpen, setExportOpen] = useState(false);
+  const [lastClosedAt, setLastClosedAt] = useState<string | null>(null);
 
   const { data: branches } = useQuery({ queryKey: ['branches-all'], queryFn: () => branchesApi.list({ limit: 100 }) });
 
@@ -106,6 +127,20 @@ export default function ReportsPage() {
   }, [preset, customFrom, customTo]);
 
   const customIncomplete = preset === 'custom' && (!customFrom || !customTo);
+  // Stempel closing terpisah per tanggal/rentang + cabang. Tanpa scope ini,
+  // closing cabang A bisa keliru terlihat sebagai closing cabang B.
+  const closingStorageKey = `${CLOSING_KEY}:${period.from}:${period.to}:${branchId || 'all'}`;
+  useEffect(() => {
+    setLastClosedAt(localStorage.getItem(closingStorageKey));
+  }, [closingStorageKey]);
+
+  // Label periode untuk judul kartu closing. Huruf kecil karena diletakkan
+  // setelah kata "Closing" (mis. "Closing hari ini" / "Closing 6 Agu 2026").
+  const periodLabel = useMemo(() => {
+    if (preset === 'today') return 'hari ini';
+    if (period.from === period.to) return formatTanggal(period.from);
+    return `${formatTanggal(period.from)} – ${formatTanggal(period.to)}`;
+  }, [preset, period.from, period.to]);
 
   const statsQuery = useQuery({
     queryKey: ['report', period.from, period.to, branchId],
@@ -114,8 +149,43 @@ export default function ReportsPage() {
       return computeStats(orders, period);
     },
     enabled: !customIncomplete,
+    // Sinkronisasi nota <-> laporan: data cepat dianggap basi + auto refresh berkala.
+    staleTime: 5_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
   const s = statsQuery.data;
+
+  /* Angka uang (kas masuk, piutang, rekonsiliasi) diambil dari backend yang
+     menghitungnya di PostgreSQL memakai amountPaid. Ini sengaja TIDAK dihitung
+     ulang dari daftar order, karena totalAmount hanya mewakili nilai nota —
+     bukan uang yang benar-benar diterima. */
+  const closingQuery = useQuery({
+    queryKey: ['report-closing', period.from, period.to, branchId],
+    queryFn: () => dashboardApi.closingReport({
+      dateFrom: period.from,
+      dateTo: period.to,
+      branchId: branchId || undefined,
+    }),
+    enabled: !customIncomplete,
+    staleTime: 5_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+  const closing = closingQuery.data;
+
+  // "Sehari penuh" (00:00–23:59) dianggap satu hari kerja closing,
+  // terlepas dari preset yang membuatnya.
+  const isClosingFullDay = period.from === period.to;
+
+  // Nilai periode ikut periode yang valid: tanggal+cabang+saldo stempel.
+  // Ini mencegah pengguna mengira closing "hari ini" berlaku juga untuk cabang lain.
+  const closingStampKey = `${CLOSING_KEY}|${period.from}|${period.to}|${branchId || 'all'}`;
+
+  // Baca stempel closing untuk periode yang sedang dilihat.
+  useEffect(() => {
+    setLastClosedAt(localStorage.getItem(closingStampKey));
+  }, [closingStampKey]);
 
   /* Recharts butuh nilai hex, tidak bisa memakai class Tailwind — jadi token
      dari tailwind.config.ts direplikasi manual di sini. */
@@ -129,6 +199,23 @@ export default function ReportsPage() {
     return s.byDay.map((d) => ({ name: d.date.slice(5), revenue: d.revenue }));
   }, [s]);
 
+  /* Closing: buang cache order + laporan lalu tarik ulang, sehingga angka laporan
+     dijamin memakai status nota terbaru (SELESAI/DIAMBIL yang baru saja diubah kasir). */
+  async function doClosingSync() {
+    const now = new Date().toISOString();
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['report'] });
+      await queryClient.invalidateQueries({ queryKey: ['report-closing'] });
+      await Promise.all([statsQuery.refetch(), closingQuery.refetch()]);
+      localStorage.setItem(closingStorageKey, now);
+      setLastClosedAt(now);
+      toast.success('Data laporan & nota tersinkron');
+    } catch {
+      toast.error('Gagal menyinkronkan data');
+    }
+  }
+
   function doExport(kind: 'csv' | 'xlsx' | 'pdf') {
     setExportOpen(false);
     if (!s) return;
@@ -138,7 +225,7 @@ export default function ReportsPage() {
         window.print();
         return;
       }
-      const sheets = buildSheets(s);
+      const sheets = buildSheets(s, closing);
       if (kind === 'xlsx') {
         exportXlsx(sheets, `laporan-londri-${stamp}`).then(() => toast.success('Excel diunduh')).catch(() => toast.error('Gagal ekspor Excel'));
         return;
@@ -164,37 +251,51 @@ export default function ReportsPage() {
     }
   }
 
+  /* KPI memakai angka uang dari backend bila tersedia. "Uang Masuk" lebih
+     jujur daripada "Total Revenue", yang dulu menjumlahkan nilai nota termasuk
+     yang belum dibayar. */
   const kpis = s ? [
-    { label: 'Total Revenue', value: formatRupiah(s.totalRevenue), Icon: TrendUp, color: 'bg-primary-container text-on-primary-container' },
+    closing
+      ? { label: 'Uang Masuk', value: formatRupiah(Number(closing.cashIn.total)), Icon: Wallet, color: 'bg-primary-container text-on-primary-container' }
+      : { label: 'Nilai Nota', value: formatRupiah(s.totalRevenue), Icon: TrendUp, color: 'bg-primary-container text-on-primary-container' },
     { label: 'Total Order', value: String(s.totalOrders), Icon: Receipt, color: 'bg-primary-container text-on-primary-container' },
-    { label: 'Rata-rata Order', value: formatRupiah(s.avgOrderValue), Icon: Wallet, color: 'bg-primary-container text-on-primary-container' },
+    closing
+      ? { label: 'belum dibayar', value: formatRupiah(Number(closing.summary.outstanding)), Icon: WarningCircle, color: Number(closing.summary.outstanding) > 0 ? 'bg-error-container text-on-error-container' : 'bg-primary-container text-on-primary-container' }
+      : { label: 'Rata-rata Order', value: formatRupiah(s.avgOrderValue), Icon: Wallet, color: 'bg-primary-container text-on-primary-container' },
     { label: 'Pelanggan Unik', value: String(s.uniqueCustomers), Icon: Users, color: 'bg-primary-container text-on-primary-container' },
   ] : [];
 
   return (
     <>
       <PageHeader title="Laporan" right={
-        <div className="relative print:hidden">
-          <button onClick={() => setExportOpen((v) => !v)} disabled={!s || !s.totalOrders}
-            className="flex min-h-[40px] items-center gap-1.5 rounded-md bg-primary px-3 font-body-md text-body-md font-semibold text-on-primary transition-colors active:bg-on-primary-container disabled:opacity-40">
-            <DownloadSimple size={18} weight="bold" /> Ekspor
+        <div className="flex items-center gap-2 print:hidden">
+          <button onClick={doClosingSync} disabled={statsQuery.isFetching} aria-label="Sinkronkan data closing"
+            className="flex min-h-[40px] items-center gap-1.5 rounded-md border border-border-subtle dark:border-outline-variant/25 px-3 font-body-md text-body-md font-semibold text-on-surface-variant dark:text-outline-variant transition-colors active:bg-surface-container dark:active:bg-white/10 disabled:opacity-40">
+            <ArrowsClockwise size={18} weight="bold" className={statsQuery.isFetching ? 'animate-spin' : undefined} />
+            {statsQuery.isFetching ? 'Sinkron…' : 'Closing'}
           </button>
-          {exportOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setExportOpen(false)} />
-              <div className="glass-strong absolute right-0 top-[46px] z-50 w-44 overflow-hidden rounded-md border border-border-subtle dark:border-outline-variant/25 shadow-card-hover">
-                <button onClick={() => doExport('csv')} className="flex w-full items-center gap-2.5 px-md py-3 font-body-md text-body-md active:bg-surface-container-low dark:active:bg-white/5">
-                  <FileCsv size={18} className="text-success" /> CSV
-                </button>
-                <button onClick={() => doExport('xlsx')} className="flex w-full items-center gap-2.5 px-md py-3 font-body-md text-body-md active:bg-surface-container-low dark:active:bg-white/5">
-                  <FileXls size={18} className="text-on-success-container" /> Excel (.xlsx)
-                </button>
-                <button onClick={() => doExport('pdf')} className="flex w-full items-center gap-2.5 px-md py-3 font-body-md text-body-md active:bg-surface-container-low dark:active:bg-white/5">
-                  <FilePdf size={18} className="text-error" /> PDF / Cetak
-                </button>
-              </div>
-            </>
-          )}
+          <div className="relative">
+            <button onClick={() => setExportOpen((v) => !v)} disabled={!s || !s.totalOrders}
+              className="flex min-h-[40px] items-center gap-1.5 rounded-md bg-primary px-3 font-body-md text-body-md font-semibold text-on-primary transition-colors active:bg-on-primary-container disabled:opacity-40">
+              <DownloadSimple size={18} weight="bold" /> Ekspor
+            </button>
+            {exportOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setExportOpen(false)} />
+                <div className="glass-strong absolute right-0 top-[46px] z-50 w-44 overflow-hidden rounded-md border border-border-subtle dark:border-outline-variant/25 shadow-card-hover">
+                  <button onClick={() => doExport('csv')} className="flex w-full items-center gap-2.5 px-md py-3 font-body-md text-body-md active:bg-surface-container-low dark:active:bg-white/5">
+                    <FileCsv size={18} className="text-success" /> CSV
+                  </button>
+                  <button onClick={() => doExport('xlsx')} className="flex w-full items-center gap-2.5 px-md py-3 font-body-md text-body-md active:bg-surface-container-low dark:active:bg-white/5">
+                    <FileXls size={18} className="text-on-success-container" /> Excel (.xlsx)
+                  </button>
+                  <button onClick={() => doExport('pdf')} className="flex w-full items-center gap-2.5 px-md py-3 font-body-md text-body-md active:bg-surface-container-low dark:active:bg-white/5">
+                    <FilePdf size={18} className="text-error" /> PDF / Cetak
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       } />
 
@@ -238,6 +339,14 @@ export default function ReportsPage() {
               </button>
             )}
           </div>
+          {/* Status sinkronisasi closing */}
+          <p className="mt-2 px-1 font-label-md text-label-md text-outline dark:text-outline-variant">
+            {statsQuery.isFetching
+              ? 'Menyinkronkan data nota…'
+              : lastClosedAt
+                ? `Terakhir closing: ${new Date(lastClosedAt).toLocaleString('id-ID')}`
+                : 'Belum pernah closing di perangkat ini'}
+          </p>
         </div>
 
         {/* Judul cetak (hanya muncul saat print) */}
@@ -255,12 +364,50 @@ export default function ReportsPage() {
           <p className="py-16 text-center font-body-md text-body-md text-outline dark:text-outline-variant">Memuat data laporan…</p>
         ) : statsQuery.isError ? (
           <p role="alert" className="py-16 text-center font-body-md text-body-md text-error">Gagal memuat laporan. Coba lagi.</p>
-        ) : s && s.totalOrders === 0 ? (
-          <p className="py-16 text-center font-body-md text-body-md text-outline dark:text-outline-variant">Tidak ada order pada periode ini.</p>
         ) : s ? (
           <>
-            {/* KPI */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Closing: jembatan nota -> uang. Ditempatkan paling atas karena
+                inilah yang dibuka pegawai saat menutup kasir. */}
+            {closing && <ClosingCard report={closing} dateLabel={periodLabel} />}
+
+            {/* Rekap per kasir: tiap kasir punya status cocok/selisih sendiri
+                agar selisih bisa ditelusuri ke orangnya, bukan hanya total. */}
+            {closing && closing.byCashier.length > 0 && (
+              <section className="glass rounded-xl border border-border-subtle dark:border-outline-variant/20 p-md shadow-card">
+                <h2 className="mb-3 flex items-center gap-2 font-semibold">
+                  <UserCircle size={18} weight="duotone" className="text-primary dark:text-inverse-primary" />
+                  Setoran per kasir
+                </h2>
+                <div className="space-y-2.5">
+                  {closing.byCashier.map((c) => (
+                    <div key={c.staffId} className="flex items-center justify-between gap-3 border-b border-dashed border-border-subtle dark:border-outline-variant/25 pb-2.5 last:border-0 last:pb-0">
+                      <div className="min-w-0">
+                        <p className="truncate font-body-md text-body-md font-semibold">{c.fullName}</p>
+                        <p className="font-label-md text-label-md text-outline dark:text-outline-variant">
+                          {c.orderCount} nota
+                          {Number(c.outstanding) > 0 && ` · belum dibayar ${formatRupiah(Number(c.outstanding))}`}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="tabular-nums font-data-tabular font-bold">{formatRupiah(Number(c.cashIn))}</p>
+                        <p className={`font-label-md text-label-md ${c.isBalanced ? 'text-success' : 'text-error'}`}>
+                          {c.isBalanced ? 'Cocok' : 'Selisih'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {s.totalOrders === 0 && Number(closing?.cashIn.total || 0) === 0 ? (
+              <p className="rounded-xl border border-border-subtle dark:border-outline-variant/20 glass py-6 text-center font-body-md text-body-md text-outline dark:text-outline-variant">
+                Tidak ada transaksi pada periode ini.
+              </p>
+            ) : (
+              <>
+                {/* KPI */}
+                <div className="grid grid-cols-2 gap-3">
               {kpis.map((k) => (
                 <div key={k.label} className="glass rounded-xl border border-border-subtle dark:border-outline-variant/20 p-3.5 shadow-card">
                   <div className={`mb-2.5 flex h-8 w-8 items-center justify-center rounded-xl ${k.color}`}><k.Icon size={16} weight="duotone" /></div>
@@ -330,6 +477,8 @@ export default function ReportsPage() {
                 )}
               </div>
             </section>
+              </>
+            )}
           </>
         ) : null}
       </div>

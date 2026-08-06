@@ -285,3 +285,58 @@ export interface MostUsedPromotion {
   name: string;
   usage_count: number;
 }
+
+// ===== Laporan closing (GET /dashboard/report) =====
+// Semua nominal dikirim backend sebagai string desimal ("300000.00").
+export type CashMethod = 'CASH' | 'TRANSFER' | 'QRIS';
+
+export interface ClosingReport {
+  period: { dateFrom: string; dateTo: string; timezone: string; branchId: number | null };
+  summary: {
+    orderCount: number;
+    cancelledCount: number;
+    newOrderValue: string;   // nilai seluruh nota yang dibuat pada periode
+    discountTotal: string;
+    outstanding: string;     // piutang: nota yang belum dibayar
+    quantityByServiceType: { type: string; quantity: string }[];
+  };
+  cashIn: {
+    total: string;               // seluruh uang yang masuk pada periode
+    fromNewOrders: string;       // bagian yang berasal dari nota periode ini
+    fromPreviousOrders: string;  // pelunasan nota periode sebelumnya
+    byPurpose: Record<string, string>;
+    byMethod: {
+      method: CashMethod;
+      amount: string;        // neto diterima
+      feeAmount: string;     // biaya (mis. QRIS)
+      grossAmount: string;   // bruto sebelum fee
+      transactionCount: number;
+    }[];
+  };
+  membershipUsed: { amount: string; orderCount: number };
+  /* Jembatan nota -> uang. difference = newOrderValue - paidOnNewOrders
+     - membershipUsed - outstanding. isBalanced true berarti closing cocok. */
+  reconciliation: {
+    newOrderValue: string;
+    paidOnNewOrders: string;
+    membershipUsed: string;
+    outstanding: string;
+    difference: string;
+    isBalanced: boolean;
+  };
+  receivablesAging: { bucket: string; orderCount: number; amount: string }[];
+  orderStatus: { status: string; orderCount: number; value: string }[];
+  readyNotPickedUp: { bucket: string; orderCount: number; value: string }[];
+  byCashier: {
+    staffId: string;
+    fullName: string;
+    orderCount: number;
+    newOrderValue: string;
+    cashIn: string;
+    byMethod: Record<CashMethod, string>;
+    membershipUsed: string;
+    outstanding: string;
+    isBalanced: boolean;
+  }[];
+  byService: { serviceId: string; name: string; type: string; quantity: string; revenue: string }[];
+}

@@ -22,6 +22,11 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
       setSheet(false);
       qc.invalidateQueries({ queryKey: ['order', params.id] });
       qc.invalidateQueries({ queryKey: ['orders'] });
+      // Status nota berubah -> revenue/laporan ikut berubah. Tanpa ini,
+      // halaman Laporan menyajikan angka basi sampai cache-nya kedaluwarsa.
+      qc.invalidateQueries({ queryKey: ['report'] });
+      // key dashboard terpecah ('dashboard', 'dashboard-months', ...), jadi cocokkan per-prefix string.
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === 'string' && (q.queryKey[0] as string).startsWith('dashboard') });
     },
     onError: (e) => toast.error(apiMessage(e)),
   });
