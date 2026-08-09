@@ -1,11 +1,12 @@
 'use client';
 import { useMemo, useState, useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 import { branchesApi, dashboardApi } from '@/lib/api';
 import { fetchOrdersInPeriod, computeStats, periodFromPreset, PERIOD_LABEL } from '@/lib/reports';
 import type { PeriodPreset, Period, ReportStats } from '@/lib/reports';
 import type { ClosingReport } from '@/lib/types';
+import { buildCashMethodRows, buildDailyCashRow, calendarDays } from '@/lib/cash-report.mjs';
 import { exportCsv, exportXlsx, type Sheet } from '@/lib/export';
 import { formatRupiah, formatTanggal } from '@/lib/utils';
 import { STATUS_LABEL, PAYMENT_LABEL } from '@/lib/labels';
@@ -27,14 +28,12 @@ const Tooltip = dynamic(() => import('recharts').then(m => m.Tooltip), { ssr: fa
 const ResponsiveContainer = dynamic(() => import('recharts').then(m => m.ResponsiveContainer), { ssr: false });
 
 const PRESETS: PeriodPreset[] = ['today', '7d', '30d', 'month', 'custom'];
-
 const CLOSING_KEY = 'londri_last_closing';
 
 function fileStamp(p: Period) {
   return p.from === p.to ? p.from : `${p.from}_${p.to}`;
 }
 
-// Bangun sheet-sheet untuk ekspor multi-tab (dipakai XLSX; CSV pakai sheet ringkasan+transaksi digabung).
 function buildSheets(s: ReportStats, closing?: ClosingReport): Sheet[] {
   const num = (v: string | number | null | undefined) => Number(v ?? 0);
   const ringkasan: Sheet = {
@@ -109,13 +108,15 @@ export default function ReportsPage() {
   const { resolved } = useTheme();
   const isDark = resolved === 'dark';
   const queryClient = useQueryClient();
-  // Closing adalah workflow harian, jadi halaman dibuka langsung ke hari ini.
   const [preset, setPreset] = useState<PeriodPreset>('today');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [branchId, setBranchId] = useState('');
   const [exportOpen, setExportOpen] = useState(false);
   const [lastClosedAt, setLastClosedAt] = useState<string | null>(null);
+  const [basis, setBasis] = useState<'cash' | 'accrual'>('cash');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterPayment, setFilterPayment] = useState('');
 
   const { data: branches } = useQuery({ queryKey: ['branches-all'], queryFn: () => branchesApi.list({ limit: 100 }) });
 
@@ -127,15 +128,11 @@ export default function ReportsPage() {
   }, [preset, customFrom, customTo]);
 
   const customIncomplete = preset === 'custom' && (!customFrom || !customTo);
-  // Stempel closing terpisah per tanggal/rentang + cabang. Tanpa scope ini,
-  // closing cabang A bisa keliru terlihat sebagai closing cabang B.
   const closingStorageKey = `${CLOSING_KEY}:${period.from}:${period.to}:${branchId || 'all'}`;
   useEffect(() => {
     setLastClosedAt(localStorage.getItem(closingStorageKey));
   }, [closingStorageKey]);
 
-  // Label periode untuk judul kartu closing. Huruf kecil karena diletakkan
-  // setelah kata "Closing" (mis. "Closing hari ini" / "Closing 6 Agu 2026").
   const periodLabel = useMemo(() => {
     if (preset === 'today') return 'hari ini';
     if (period.from === period.to) return formatTanggal(period.from);
@@ -149,17 +146,12 @@ export default function ReportsPage() {
       return computeStats(orders, period);
     },
     enabled: !customIncomplete,
-    // Sinkronisasi nota <-> laporan: data cepat dianggap basi + auto refresh berkala.
     staleTime: 5_000,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
   const s = statsQuery.data;
 
-  /* Angka uang (kas masuk, piutang, rekonsiliasi) diambil dari backend yang
-     menghitungnya di PostgreSQL memakai amountPaid. Ini sengaja TIDAK dihitung
-     ulang dari daftar order, karena totalAmount hanya mewakili nilai nota —
-     bukan uang yang benar-benar diterima. */
   const closingQuery = useQuery({
     queryKey: ['report-closing', period.from, period.to, branchId],
     queryFn: () => dashboardApi.closingReport({
@@ -174,33 +166,88 @@ export default function ReportsPage() {
   });
   const closing = closingQuery.data;
 
-  // "Sehari penuh" (00:00–23:59) dianggap satu hari kerja closing,
-  // terlepas dari preset yang membuatnya.
-  const isClosingFullDay = period.from === period.to;
+  // Endpoint closing sudah menjadi sumber kebenaran kas. Untuk chart maksimal
+  // 31 hari, ambil satu agregat closing per tanggal agar uang dicatat saat
+  // diterima (bukan saat nota dibuat atau selesai).
+  const cashChartCandidateDays = useMemo(
+    () => calendarDays(period.from, period.to, 32),
+    [period.from, period.to],
+  );
+  const cashChartTooLarge = cashChartCandidateDays.length > 31;
+  const cashChartDays = cashChartTooLarge ? [] : cashChartCandidateDays;
+  const dailyCashQueries = useQueries({
+    queries: cashChartDays.map((date) => ({
+      queryKey: ['report-closing-daily', date, branchId],
+      queryFn: () => dashboardApi.closingReport({ dateFrom: date, dateTo: date, branchId: branchId || undefined }),
+      enabled: basis === 'cash' && !customIncomplete,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    })),
+  });
+  const cashChartLoading = basis === 'cash' && dailyCashQueries.some((query) => query.isLoading);
+  const cashChartError = basis === 'cash' && dailyCashQueries.some((query) => query.isError);
+  const cashChartData = useMemo(() => cashChartDays.map((date, index) => {
+    const report = dailyCashQueries[index]?.data;
+    return buildDailyCashRow(date, report?.cashIn ?? {});
+  }), [cashChartDays, dailyCashQueries]);
 
-  // Nilai periode ikut periode yang valid: tanggal+cabang+saldo stempel.
-  // Ini mencegah pengguna mengira closing "hari ini" berlaku juga untuk cabang lain.
-  const closingStampKey = `${CLOSING_KEY}|${period.from}|${period.to}|${branchId || 'all'}`;
-
-  // Baca stempel closing untuk periode yang sedang dilihat.
-  useEffect(() => {
-    setLastClosedAt(localStorage.getItem(closingStampKey));
-  }, [closingStampKey]);
-
-  /* Recharts butuh nilai hex, tidak bisa memakai class Tailwind — jadi token
-     dari tailwind.config.ts direplikasi manual di sini. */
-  const tickColor = isDark ? '#bec8d2' : '#3e4850';        // outline-variant / on-surface-variant
-  const gridColor = isDark ? '#3e4850' : '#f2f3ff';        // surface-container-low
+  const tickColor = isDark ? '#bec8d2' : '#3e4850';
+  const gridColor = isDark ? '#3e4850' : '#f2f3ff';
   const tooltipStyle = { backgroundColor: isDark ? '#2a3040' : '#ffffff', border: `1px solid ${isDark ? '#3e4850' : '#e2e8f0'}`, borderRadius: 12, fontSize: 12 };
   const tooltipLabelStyle = { color: isDark ? '#eef0ff' : '#151b2b', fontWeight: 600 };
 
   const chartData = useMemo(() => {
     if (!s) return [];
+    if (basis === 'cash' && closing) {
+      return [];
+    }
     return s.byDay.map((d) => ({ name: d.date.slice(5), revenue: d.revenue }));
-  }, [s]);
+  }, [s, basis, closing, period.from, period.to]);
 
-  /* Closing: buang cache order + laporan lalu tarik ulang, sehingga angka laporan
-     dijamin memakai status nota terbaru (SELESAI/DIAMBIL yang baru saja diubah kasir). */
+  const paymentBreakdown = useMemo(() => {
+    if (basis === 'cash' && closing) {
+      const totalCash = Number(closing.cashIn.total);
+      return buildCashMethodRows(closing.cashIn.byMethod).map((method) => ({
+        ...method,
+        revenue: method.net,
+        pct: totalCash > 0 ? Math.round((method.net / totalCash) * 100) : 0,
+      }));
+    }
+    const totalRev = s?.totalRevenue || 0;
+    return (s?.byPayment || [])
+      .filter((p) => p.key === 'CASH' || p.key === 'QRIS')
+      .map((p) => ({
+        key: p.key,
+        label: p.label,
+        count: p.count,
+        revenue: p.revenue,
+        pct: totalRev > 0 ? Math.round((p.revenue / totalRev) * 100) : 0,
+      }));
+  }, [basis, closing, s]);
+
+  const cashierBreakdown = useMemo(() => {
+    if (!closing) return [];
+    const omsetMap = new Map((s?.byCashier || []).map(c => [c.key, c]));
+    return closing.byCashier.map(c => ({
+      key: c.staffId,
+      label: c.fullName,
+      cashIn: Number(c.cashIn),
+      omset: omsetMap.get(c.staffId)?.revenue || 0,
+      orderCount: c.orderCount,
+      outstanding: Number(c.outstanding),
+      isBalanced: c.isBalanced,
+    }));
+  }, [closing, s]);
+
+  const filteredOrders = useMemo(() => {
+    if (!s) return [];
+    return s.orders.filter(o => {
+      if (filterStatus && o.status !== filterStatus) return false;
+      if (filterPayment && o.paymentMethod !== filterPayment) return false;
+      return true;
+    });
+  }, [s, filterStatus, filterPayment]);
+
   async function doClosingSync() {
     const now = new Date().toISOString();
     try {
@@ -230,7 +277,6 @@ export default function ReportsPage() {
         exportXlsx(sheets, `laporan-londri-${stamp}`).then(() => toast.success('Excel diunduh')).catch(() => toast.error('Gagal ekspor Excel'));
         return;
       }
-      // CSV: gabung ringkasan + transaksi jadi satu file (CSV tidak mendukung multi-sheet).
       const summary = sheets[0];
       const tx = sheets[sheets.length - 1];
       const combined: Sheet = {
@@ -251,9 +297,6 @@ export default function ReportsPage() {
     }
   }
 
-  /* KPI memakai angka uang dari backend bila tersedia. "Uang Masuk" lebih
-     jujur daripada "Total Revenue", yang dulu menjumlahkan nilai nota termasuk
-     yang belum dibayar. */
   const kpis = s ? [
     closing
       ? { label: 'Uang Masuk', value: formatRupiah(Number(closing.cashIn.total)), Icon: Wallet, color: 'bg-primary-container text-on-primary-container' }
@@ -264,6 +307,10 @@ export default function ReportsPage() {
       : { label: 'Rata-rata Order', value: formatRupiah(s.avgOrderValue), Icon: Wallet, color: 'bg-primary-container text-on-primary-container' },
     { label: 'Pelanggan Unik', value: String(s.uniqueCustomers), Icon: Users, color: 'bg-primary-container text-on-primary-container' },
   ] : [];
+
+  const breakdownTotal = basis === 'cash' && closing
+    ? Number(closing.cashIn.total)
+    : (s ? s.totalRevenue : 0);
 
   return (
     <>
@@ -300,7 +347,6 @@ export default function ReportsPage() {
       } />
 
       <div className="space-y-5 p-4">
-        {/* Filter periode */}
         <div className="print:hidden">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
             {PRESETS.map((p) => (
@@ -324,7 +370,6 @@ export default function ReportsPage() {
               </label>
             </div>
           )}
-          {/* Filter cabang */}
           <div className="mt-2 flex items-center gap-2">
             <Funnel size={16} className="shrink-0 text-outline dark:text-outline-variant" aria-hidden="true" />
             <select value={branchId} onChange={(e) => setBranchId(e.target.value)}
@@ -339,7 +384,30 @@ export default function ReportsPage() {
               </button>
             )}
           </div>
-          {/* Status sinkronisasi closing */}
+          
+          <div className="mt-3 flex items-center justify-between rounded-lg border border-border-subtle dark:border-outline-variant/20 bg-surface-container-low dark:bg-white/5 p-3">
+            <div>
+              <p className="font-body-md text-body-md font-medium text-on-surface dark:text-inverse-on-surface">
+                Basis perhitungan
+              </p>
+              <p className="font-label-md text-label-md text-on-surface-variant dark:text-outline-variant">
+                {basis === 'cash' 
+                  ? 'Uang masuk nyata (tunai/QRIS diterima)' 
+                  : 'Omset order selesai/diambil'}
+              </p>
+            </div>
+            <button
+              onClick={() => setBasis(basis === 'cash' ? 'accrual' : 'cash')}
+              className={`relative h-8 w-14 rounded-full transition-colors ${
+                basis === 'cash' ? 'bg-primary' : 'bg-surface-container-high'
+              }`}
+              aria-label={`Switch ke basis ${basis === 'cash' ? 'accrual' : 'cash'}`}
+            >
+              <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-card transition-[left] ${
+                basis === 'cash' ? 'left-7' : 'left-1'
+              }`} />
+            </button>
+          </div>
           <p className="mt-2 px-1 font-label-md text-label-md text-outline dark:text-outline-variant">
             {statsQuery.isFetching
               ? 'Menyinkronkan data nota…'
@@ -349,7 +417,6 @@ export default function ReportsPage() {
           </p>
         </div>
 
-        {/* Judul cetak (hanya muncul saat print) */}
         <div className="hidden print:block">
           <h1 className="text-2xl font-bold">Laporan Londri POS</h1>
           <p className="font-body-md text-body-md text-on-surface-variant dark:text-outline-variant">
@@ -366,30 +433,26 @@ export default function ReportsPage() {
           <p role="alert" className="py-16 text-center font-body-md text-body-md text-error">Gagal memuat laporan. Coba lagi.</p>
         ) : s ? (
           <>
-            {/* Closing: jembatan nota -> uang. Ditempatkan paling atas karena
-                inilah yang dibuka pegawai saat menutup kasir. */}
             {closing && <ClosingCard report={closing} dateLabel={periodLabel} />}
 
-            {/* Rekap per kasir: tiap kasir punya status cocok/selisih sendiri
-                agar selisih bisa ditelusuri ke orangnya, bukan hanya total. */}
-            {closing && closing.byCashier.length > 0 && (
+            {closing && cashierBreakdown.length > 0 && (
               <section className="glass rounded-xl border border-border-subtle dark:border-outline-variant/20 p-md shadow-card">
                 <h2 className="mb-3 flex items-center gap-2 font-semibold">
-                  <UserCircle size={18} weight="duotone" className="text-primary dark:text-inverse-primary" />
+                  <UserCircle size={18} weight="fill" className="text-primary dark:text-inverse-primary" />
                   Setoran per kasir
                 </h2>
                 <div className="space-y-2.5">
-                  {closing.byCashier.map((c) => (
-                    <div key={c.staffId} className="flex items-center justify-between gap-3 border-b border-dashed border-border-subtle dark:border-outline-variant/25 pb-2.5 last:border-0 last:pb-0">
+                  {cashierBreakdown.map((c) => (
+                    <div key={c.key} className="flex items-center justify-between gap-3 border-b border-dashed border-border-subtle dark:border-outline-variant/25 pb-2.5 last:border-0 last:pb-0">
                       <div className="min-w-0">
-                        <p className="truncate font-body-md text-body-md font-semibold">{c.fullName}</p>
+                        <p className="truncate font-body-md text-body-md font-semibold">{c.label}</p>
                         <p className="font-label-md text-label-md text-outline dark:text-outline-variant">
                           {c.orderCount} nota
-                          {Number(c.outstanding) > 0 && ` · belum dibayar ${formatRupiah(Number(c.outstanding))}`}
+                          {c.outstanding > 0 && ` · piutang ${formatRupiah(c.outstanding)}`}
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="tabular-nums font-data-tabular font-bold">{formatRupiah(Number(c.cashIn))}</p>
+                        <p className="tabular-nums font-data-tabular font-bold">{formatRupiah(c.cashIn)}</p>
                         <p className={`font-label-md text-label-md ${c.isBalanced ? 'text-success' : 'text-error'}`}>
                           {c.isBalanced ? 'Cocok' : 'Selisih'}
                         </p>
@@ -397,6 +460,9 @@ export default function ReportsPage() {
                     </div>
                   ))}
                 </div>
+                <p className="mt-3 pt-2 border-t border-border-subtle dark:border-outline-variant/20 font-label-md text-label-md text-outline dark:text-outline-variant">
+                  Nilai = uang masuk (cash-in) per kasir. Omset (order selesai) terpisah di bawah.
+                </p>
               </section>
             )}
 
@@ -406,7 +472,6 @@ export default function ReportsPage() {
               </p>
             ) : (
               <>
-                {/* KPI */}
                 <div className="grid grid-cols-2 gap-3">
               {kpis.map((k) => (
                 <div key={k.label} className="glass rounded-xl border border-border-subtle dark:border-outline-variant/20 p-3.5 shadow-card">
@@ -417,14 +482,48 @@ export default function ReportsPage() {
               ))}
             </div>
             <p className="-mt-2 flex items-center gap-1.5 px-1 font-label-md text-label-md text-outline dark:text-outline-variant">
-              <Info size={13} weight="duotone" className="shrink-0" />
-              Revenue dihitung dari order berstatus <b className="font-semibold">Selesai</b>. Order yang masih diproses belum terhitung.
+              <Info size={13} weight="fill" className="shrink-0" />
+              {basis === 'cash'
+                ? 'Dana diterima usaha = tunai di laci + QRIS netto yang diselesaikan gateway pada periode ini. Pembayaran order diproses tetap tercatat saat diterima.'
+                : 'Omset = nilai order berstatus Selesai/Diambil. Uang yang sudah diterima di muka tidak terhitung.'}
             </p>
 
-            {/* Tren revenue harian */}
             <section className="glass rounded-xl border border-border-subtle dark:border-outline-variant/20 p-md shadow-card">
-              <h2 className="mb-4 flex items-center gap-2 font-semibold"><ChartBar size={18} weight="duotone" className="text-primary dark:text-inverse-primary" /> Revenue harian</h2>
-              {chartData.some((d) => d.revenue > 0) ? (
+              <h2 className="mb-4 flex items-center gap-2 font-semibold">
+                <ChartBar size={18} weight="fill" className="text-primary dark:text-inverse-primary" /> 
+                {basis === 'cash' ? 'Uang masuk periode ini' : 'Omset harian'}
+              </h2>
+              {basis === 'cash' && cashChartTooLarge ? (
+                <div className="py-6 text-center">
+                  <p className="text-2xl font-bold tabular-nums">{formatRupiah(Number(closing?.cashIn.total || 0))}</p>
+                  <p className="mt-2 font-label-md text-label-md text-outline dark:text-outline-variant">
+                    Pilih rentang maksimal 31 hari untuk melihat chart kas harian.
+                  </p>
+                </div>
+              ) : basis === 'cash' && cashChartLoading ? (
+                <p className="py-10 text-center font-body-md text-body-md text-outline dark:text-outline-variant">Memuat uang masuk harian…</p>
+              ) : basis === 'cash' && cashChartError ? (
+                <p className="py-10 text-center font-body-md text-body-md text-error">Gagal memuat chart uang masuk harian.</p>
+              ) : basis === 'cash' && cashChartData.some((d) => d.total > 0) ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={cashChartData} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
+                    <CartesianGrid vertical={false} stroke={gridColor} />
+                    <XAxis dataKey="label" fontSize={10} tick={{ fill: tickColor }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                    <YAxis hide />
+                    <Tooltip
+                      formatter={(value, name) => [formatRupiah(Number(value)), name === 'cash' ? 'Tunai' : 'QRIS netto']}
+                      labelFormatter={(label) => `Tanggal ${label}`}
+                      contentStyle={tooltipStyle}
+                      labelStyle={tooltipLabelStyle}
+                      cursor={{ fill: isDark ? '#3e4850' : '#f2f3ff' }}
+                    />
+                    <Bar dataKey="cash" stackId="cash" name="Tunai" fill="#006591" radius={[0, 0, 4, 4]} />
+                    <Bar dataKey="qris" stackId="cash" name="QRIS netto" fill="#58a7d2" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : basis === 'cash' ? (
+                <p className="py-10 text-center font-body-md text-body-md text-outline dark:text-outline-variant">Belum ada dana diterima pada periode ini.</p>
+              ) : chartData.some((d) => d.revenue > 0) ? (
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
                     <CartesianGrid vertical={false} stroke={gridColor} />
@@ -437,18 +536,66 @@ export default function ReportsPage() {
               ) : <p className="py-10 text-center font-body-md text-body-md text-outline dark:text-outline-variant">Belum ada revenue pada periode ini</p>}
             </section>
 
-            {/* Breakdown metode pembayaran */}
-            <BreakdownCard title="Per metode pembayaran" rows={s.byPayment} total={s.totalRevenue} />
-            {/* Breakdown status */}
-            <BreakdownCard title="Per status order" rows={s.byStatus} total={s.totalOrders} mode="count" />
-            {/* Breakdown kasir */}
-            <BreakdownCard title="Per kasir" rows={s.byCashier} total={s.totalRevenue} limit={5} />
-
-            {/* Tabel transaksi */}
-            <section className="glass overflow-hidden rounded-xl border border-border-subtle dark:border-outline-variant/20 shadow-card">
-              <h2 className="card-head px-md py-3 font-headline-md text-headline-md">
-                Transaksi <span className="font-label-md text-label-md font-normal text-outline dark:text-outline-variant">({s.orders.length})</span>
+            <section className="glass rounded-xl border border-border-subtle dark:border-outline-variant/20 p-md shadow-card">
+              <h2 className="mb-3 font-semibold">
+                {basis === 'cash' ? 'Uang masuk per metode' : 'Omset per metode pembayaran'}
               </h2>
+              <div className="space-y-3">
+                {paymentBreakdown.map((p) => (
+                  <div key={p.key}>
+                    <div className="mb-1 flex items-center justify-between gap-2 text-sm">
+                      <span className="min-w-0 flex-1 truncate">{p.label}</span>
+                      <span className="shrink-0 tabular-nums font-semibold">{formatRupiah(p.revenue)}</span>
+                      <span className="w-9 shrink-0 text-right font-data-tabular text-data-tabular text-on-surface-variant dark:text-outline-variant tabular-nums">{p.pct}%</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-surface-container dark:bg-white/10">
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${p.pct}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {basis === 'cash' && (
+                <p className="mt-3 pt-2 border-t border-border-subtle dark:border-outline-variant/20 font-label-md text-label-md text-outline dark:text-outline-variant">
+                  Berdasarkan tunai diterima dan QRIS netto settlement. Pembayaran order diproses tetap tercatat saat diterima.
+                </p>
+              )}
+            </section>
+            <BreakdownCard title="Per status order" rows={s.byStatus} total={s.totalOrders} mode="count" />
+            <BreakdownCard 
+              title="Omset per kasir" 
+              rows={s.byCashier} 
+              total={s.totalRevenue} 
+              limit={5}
+            />
+
+            <section className="glass overflow-hidden rounded-xl border border-border-subtle dark:border-outline-variant/20 shadow-card">
+              <div className="flex items-center justify-between px-md py-3 border-b border-border-subtle dark:border-outline-variant/20">
+                <h2 className="font-headline-md text-headline-md">
+                  Transaksi <span className="font-label-md text-label-md font-normal text-outline dark:text-outline-variant">({filteredOrders.length})</span>
+                </h2>
+                <div className="flex items-center gap-2">
+                  <select 
+                    value={filterStatus} 
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="neuo-inset min-h-[36px] rounded-md px-2 font-label-md text-label-md outline-none"
+                  >
+                    <option value="">Semua status</option>
+                    <option value="SELESAI">Selesai</option>
+                    <option value="DIPROSES">Diproses</option>
+                    <option value="DIBATALKAN">Dibatalkan</option>
+                  </select>
+                  <select 
+                    value={filterPayment} 
+                    onChange={(e) => setFilterPayment(e.target.value)}
+                    className="neuo-inset min-h-[36px] rounded-md px-2 font-label-md text-label-md outline-none"
+                  >
+                    <option value="">Semua metode</option>
+                    <option value="CASH">Tunai</option>
+                    <option value="QRIS">QRIS</option>
+                    <option value="MEMBERSHIP">Membership</option>
+                  </select>
+                </div>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -460,7 +607,7 @@ export default function ReportsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {s.orders.slice(0, 50).map((o) => (
+                    {filteredOrders.slice(0, 50).map((o) => (
                       <tr key={o.id} className="border-t border-border-subtle dark:border-outline-variant/20">
                         <td className="px-4 py-2.5 font-mono text-xs">{o.invoiceNumber}</td>
                         <td className="px-4 py-2.5"><span className="block max-w-[120px] truncate">{o.customerName}</span></td>
@@ -470,9 +617,9 @@ export default function ReportsPage() {
                     ))}
                   </tbody>
                 </table>
-                {s.orders.length > 50 && (
+                {filteredOrders.length > 50 && (
                   <p className="px-md py-3 text-center font-label-md text-label-md text-outline dark:text-outline-variant">
-                    Menampilkan 50 dari {s.orders.length} transaksi. Ekspor untuk data lengkap.
+                    Menampilkan 50 dari {filteredOrders.length} transaksi. Ekspor untuk data lengkap.
                   </p>
                 )}
               </div>
@@ -518,6 +665,11 @@ function BreakdownCard({ title, rows, total, mode = 'revenue', limit }: {
           );
         })}
       </div>
+      {title === 'Omset per kasir' && (
+        <p className="mt-3 pt-2 border-t border-border-subtle dark:border-outline-variant/20 font-label-md text-label-md text-outline dark:text-outline-variant">
+          Berdasarkan order selesai/diambil. Cash-in aktual berbeda di bagian Setoran.
+        </p>
+      )}
     </section>
   );
 }

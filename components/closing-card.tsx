@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import type { ClosingReport, CashMethod } from '@/lib/types';
 import { formatRupiah } from '@/lib/utils';
+import { buildCashMethodRows, buildCashSourceRows } from '@/lib/cash-report.mjs';
 import {
   Receipt, Money, Wallet, WarningCircle, CheckCircle, Coins, QrCode, Bank, ArrowRight,
 } from '@phosphor-icons/react';
@@ -13,8 +14,8 @@ const n = (v: string | number | null | undefined) => Number(v ?? 0);
 
 const METHOD_META: Record<CashMethod, { label: string; hint: string; Icon: typeof Coins }> = {
   CASH: { label: 'Tunai', hint: 'Hitung fisik di laci', Icon: Coins },
-  QRIS: { label: 'QRIS', hint: 'Cek mutasi', Icon: QrCode }
-};  
+  QRIS: { label: 'QRIS', hint: 'Cek mutasi', Icon: QrCode },
+};
 
 function Row({ label, value, sub, tone = 'default', indent }: {
   label: string;
@@ -55,11 +56,9 @@ export default function ClosingCard({ report, dateLabel }: { report: ClosingRepo
   const selisih = n(rec.difference);
   const balanced = rec.isBalanced;
 
-  const pelunasanLama = n(cashIn.fromPreviousOrders);
-  const totalKas = n(cashIn.total);
-
-  const tunai = cashIn.byMethod.find((m) => m.method === 'CASH');
-  const tunaiAmount = n(tunai?.amount);
+  const cashSources = buildCashSourceRows(cashIn);
+  const cashMethods = buildCashMethodRows(cashIn.byMethod);
+  const tunaiAmount = cashMethods.find((method) => method.key === 'CASH')?.net ?? 0;
 
   // Input opsional: kasir mengetik hasil hitung fisik laci untuk dibandingkan.
   const [cashCount, setCashCount] = useState('');
@@ -111,39 +110,58 @@ export default function ClosingCard({ report, dateLabel }: { report: ClosingRepo
         )}
       </div>
 
-      {/* Uang yang harus ada */}
+      {/* Dana aktual: gross QRIS pada struk, net QRIS pada settlement. */}
       <div className="border-t border-border-subtle dark:border-outline-variant/20 px-md py-3">
-        <p className="mb-2 flex items-center gap-1.5 font-label-md text-label-md uppercase tracking-wide text-outline dark:text-outline-variant">
-          <Wallet size={14} weight="duotone" /> Uang masuk periode ini
+        <p className="mb-1 flex items-center gap-1.5 font-label-md text-label-md uppercase tracking-wide text-outline dark:text-outline-variant">
+          <Wallet size={14} weight="duotone" /> Dana diterima usaha
         </p>
-        <div className="space-y-1.5">
-          {cashIn.byMethod.map((m) => {
-            const meta = METHOD_META[m.method];
-            const amount = n(m.amount);
-            if (!meta) return null;
+        <p className="mb-3 font-label-md text-label-md text-outline dark:text-outline-variant">
+          Tunai di laci + QRIS netto yang diselesaikan gateway pada periode ini.
+        </p>
+
+        <div className="space-y-2">
+          {cashMethods.map((method) => {
+            const meta = METHOD_META[method.key as CashMethod];
             return (
-              <div key={m.method} className="flex items-center justify-between gap-3">
-                <span className="flex min-w-0 items-center gap-2">
-                  <meta.Icon size={16} weight="duotone" className="shrink-0 text-primary dark:text-inverse-primary" />
-                  <span className="min-w-0">
-                    <span className="font-body-md text-body-md">{meta.label}</span>
-                    <span className="ml-1.5 font-label-md text-label-md text-outline dark:text-outline-variant">
-                    </span>
+              <div key={method.key} className="rounded-lg bg-surface-container-low px-3 py-2.5 dark:bg-white/5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <meta.Icon size={16} weight="duotone" className="shrink-0 text-primary dark:text-inverse-primary" />
+                    <span className="font-body-md text-body-md font-medium">{meta.label}</span>
                   </span>
-                </span>
-                <span className="shrink-0 tabular-nums font-data-tabular font-semibold">{formatRupiah(amount)}</span>
+                  <span className="shrink-0 tabular-nums font-data-tabular font-semibold">
+                    {formatRupiah(method.net)}
+                  </span>
+                </div>
+                {method.key === 'QRIS' && (
+                  <div className="mt-2 space-y-1 border-t border-border-subtle pt-2 dark:border-outline-variant/20">
+                    <Row label="Dibayar customer (bruto)" value={method.gross} tone="muted" indent />
+                    <Row label="Biaya layanan gateway" value={-method.fee} tone="muted" indent />
+                    <Row label="QRIS netto diterima" value={method.net} tone="strong" indent />
+                    <p className="pl-4 pt-1 font-label-md text-label-md text-outline dark:text-outline-variant">
+                      Biaya layanan sudah tercetak pada struk customer.
+                    </p>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
-        {pelunasanLama > 0 && (
-          <p className="mt-2 flex items-start gap-1.5 font-label-md text-label-md text-outline dark:text-outline-variant">
-            <ArrowRight size={13} weight="bold" className="mt-0.5 shrink-0" />
-            Termasuk {formatRupiah(pelunasanLama)} pelunasan nota hari sebelumnya — menambah kas, tetapi bukan bagian dari nilai nota hari ini.
-          </p>
-        )}
+
+        <div className="mt-3 border-t border-border-subtle pt-3 dark:border-outline-variant/20">
+          <p className="mb-1 font-label-md text-label-md uppercase tracking-wide text-outline dark:text-outline-variant">Sumber kas</p>
+          <Row label="Dari nota periode ini" value={cashSources.fromNewOrders} />
+          {cashSources.fromPreviousOrders > 0 && (
+            <Row label="Pelunasan nota periode sebelumnya" value={cashSources.fromPreviousOrders} />
+          )}
+          {!cashSources.isBalanced && (
+            <p className="mt-1 rounded-md bg-error-container/40 p-2 font-label-md text-label-md text-on-error-container">
+              Rincian sumber kas belum cocok dengan total. Periksa riwayat pembayaran.
+            </p>
+          )}
+        </div>
         <div className="mt-2 border-t border-border-subtle dark:border-outline-variant/20 pt-2">
-          <Row label="Total kas masuk" value={totalKas} tone="strong" />
+          <Row label="Total dana diterima usaha" value={cashSources.total} tone="strong" />
         </div>
       </div>
 
