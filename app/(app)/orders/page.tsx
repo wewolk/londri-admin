@@ -7,7 +7,7 @@ import SkeletonList from '@/components/skeleton-list';
 import EmptyState from '@/components/empty-state';
 import BottomSheet from '@/components/bottom-sheet';
 import SearchInput from '@/components/search-input';
-import { FunnelSimple, Basket, CircleNotch } from '@phosphor-icons/react';
+import { FunnelSimple, Basket, CircleNotch, Clock } from '@phosphor-icons/react';
 import { ordersApi, branchesApi, OrderFilters } from '@/lib/api';
 import { formatRupiah, formatRelatif } from '@/lib/utils';
 import type { OrderStatus, PaymentMethod } from '@/lib/types';
@@ -15,6 +15,20 @@ import { STATUS_BADGE, STATUS_LABEL, PAYMENT_LABEL } from '@/lib/labels';
 
 const STATUSES = Object.keys(STATUS_LABEL) as OrderStatus[];
 const PAYMENTS = Object.keys(PAYMENT_LABEL) as PaymentMethod[];
+
+// Waktu tunggu dalam jam — untuk indikator "menunggu lama"
+function waitingHours(createdAt: string): number {
+  const created = new Date(createdAt);
+  const now = new Date();
+  return Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60));
+}
+
+// Warna chip berdasarkan lama menunggu
+function waitingTone(hours: number): 'chip-neutral' | 'chip-warning' | 'chip-error' {
+  if (hours >= 24) return 'chip-error';
+  if (hours >= 4) return 'chip-warning';
+  return 'chip-neutral';
+}
 
 export default function OrdersPage() {
   const [search, setSearch] = useState('');
@@ -76,26 +90,44 @@ export default function OrdersPage() {
 
       {query.isLoading ? <SkeletonList /> : (
         <div className="space-y-3 p-4">
-          {(query.data?.pages || []).flatMap((p) => p.items).map((o) => (
-            <Link key={o.id} href={`/orders/${o.id}`} className="block overflow-hidden rounded-xl border border-border-subtle dark:border-outline-variant/20 shadow-card transition-transform duration-150 active:scale-[0.98]">
-              <div className="flex items-center justify-between border-b border-border-subtle dark:border-outline-variant/20 bg-surface-container-low dark:bg-white/5 px-md py-2.5">
-                <span className="font-data-tabular text-data-tabular font-semibold text-on-surface dark:text-inverse-on-surface">{o.invoiceNumber}</span>
-                <span className={`rounded-md px-2 py-0.5 font-label-md text-label-md ${STATUS_BADGE[o.status]}`}>{STATUS_LABEL[o.status]}</span>
-              </div>
-              <div className="p-md">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="font-body-lg text-body-lg font-medium text-on-surface dark:text-inverse-on-surface">{o.customerName}</h3>
-                    <p className="mt-0.5 font-body-md text-body-md text-secondary dark:text-outline-variant">{o.branch?.name}</p>
+          {(query.data?.pages || []).flatMap((p) => p.items).map((o) => {
+            const hours = waitingHours(o.createdAt);
+            const tone = waitingTone(hours);
+            const showWarning = o.status === 'DI_PROSES' && hours >= 4;
+            
+            return (
+              <div key={o.id} className="block overflow-hidden rounded-xl border border-border-subtle dark:border-outline-variant/20 shadow-card transition-transform duration-150 active:scale-[0.98]">
+                <Link href={`/orders/${o.id}`} className="block">
+                  <div className="flex items-center justify-between border-b border-border-subtle dark:border-outline-variant/20 bg-surface-container-low dark:bg-white/5 px-md py-2.5">
+                    <span className="font-data-tabular text-data-tabular font-semibold text-on-surface dark:text-inverse-on-surface">{o.invoiceNumber}</span>
+                    <div className="flex items-center gap-2">
+                      {showWarning && (
+                        <span className={`chip ${tone} flex items-center gap-1`}>
+                          <Clock size={12} weight="bold" />
+                          {hours}j
+                        </span>
+                      )}
+                      <span className={`rounded-md px-2 py-0.5 font-label-md text-label-md ${STATUS_BADGE[o.status]}`}>{STATUS_LABEL[o.status]}</span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-data-tabular text-data-tabular font-semibold text-on-surface dark:text-inverse-on-surface">{formatRupiah(o.totalAmount)}</p>
-                    <p className="font-label-md text-label-md text-outline dark:text-outline-variant">{formatRelatif(o.createdAt)}</p>
+                  <div className="p-md">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="font-body-lg text-body-lg font-medium text-on-surface dark:text-inverse-on-surface">{o.customerName}</h3>
+                        <p className="mt-0.5 font-body-md text-body-md text-secondary dark:text-outline-variant">{o.branch?.name}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-data-tabular text-data-tabular font-semibold text-on-surface dark:text-inverse-on-surface">{formatRupiah(o.totalAmount)}</p>
+                        <p className="font-label-md text-label-md text-outline dark:text-outline-variant">{formatRelatif(o.createdAt)}</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </Link>
+                
+                {/* Quick actions — dihapus: superadmin tidak perlu aksi kasir */}
               </div>
-            </Link>
-          ))}
+            );
+          })}
           {!(query.data?.pages[0]?.items?.length) && <EmptyState icon={Basket} title="Belum ada order" desc={activeCount || debounced ? 'Coba ubah kata kunci atau filter' : 'Order akan muncul di sini'} />}
           <div ref={sentinel} className="h-4" />
           {query.isFetchingNextPage && <p className="flex items-center justify-center gap-1.5 py-2 text-center font-label-md text-label-md text-outline dark:text-outline-variant"><CircleNotch size={14} className="animate-spin" /> Memuat…</p>}

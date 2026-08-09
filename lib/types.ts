@@ -1,6 +1,6 @@
 // ===== Enums (match backend Prisma) =====
 export type OrderStatus = 'DI_PROSES' | 'SELESAI' | 'DIAMBIL' | 'CANCELLED';
-export type PaymentMethod = 'CASH' | 'TRANSFER' | 'QRIS' | 'MEMBERSHIP';
+export type PaymentMethod = 'CASH' | 'QRIS' | 'MEMBERSHIP';
 export type MembershipStatus = 'ACTIVE' | 'EXPIRED' | 'BLOCKED';
 export type DiscountType = 'PERCENTAGE' | 'FIXED_AMOUNT';
 export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT';
@@ -200,7 +200,7 @@ export interface MembershipTransaction {
   balanceAdded: string;
   previousExpiryDate: string | null;
   newExpiryDate: string;
-  paymentMethod: 'CASH' | 'TRANSFER' | 'QRIS';
+  paymentMethod: 'CASH' | 'QRIS';
   createdAt: string;
   branch?: { id: string; name: string };
   staff?: { id: string; fullName: string };
@@ -288,7 +288,7 @@ export interface MostUsedPromotion {
 
 // ===== Laporan closing (GET /dashboard/report) =====
 // Semua nominal dikirim backend sebagai string desimal ("300000.00").
-export type CashMethod = 'CASH' | 'TRANSFER' | 'QRIS';
+export type CashMethod = 'CASH' | 'QRIS';
 
 export interface ClosingReport {
   period: { dateFrom: string; dateTo: string; timezone: string; branchId: number | null };

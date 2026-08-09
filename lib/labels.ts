@@ -35,7 +35,7 @@ export const STATUS_DOT: Record<OrderStatus, string> = {
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   DI_PROSES: 'Diproses', SELESAI: 'Selesai', DIAMBIL: 'Diambil', CANCELLED: 'Dibatalkan',
 };
-export const PAYMENT_LABEL: Record<PaymentMethod, string> = { CASH: 'Tunai', TRANSFER: 'Transfer', QRIS: 'QRIS', MEMBERSHIP: 'Membership' };
+export const PAYMENT_LABEL: Record<PaymentMethod, string> = { CASH: 'Tunai', QRIS: 'QRIS', MEMBERSHIP: 'Membership' };
 export const ORDER_FLOW: OrderStatus[] = ['DI_PROSES', 'SELESAI', 'DIAMBIL'];
 
 export const MEMBER_BADGE: Record<MembershipStatus, string> = {

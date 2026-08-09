@@ -100,7 +100,7 @@ const STATUS_ID: Record<OrderStatus, string> = {
   DI_PROSES: 'Diproses', SELESAI: 'Selesai', DIAMBIL: 'Diambil', CANCELLED: 'Dibatalkan',
 };
 const PAYMENT_ID: Record<PaymentMethod, string> = {
-  CASH: 'Tunai', TRANSFER: 'Transfer', QRIS: 'QRIS', MEMBERSHIP: 'Membership',
+  CASH: 'Tunai', QRIS: 'QRIS', MEMBERSHIP: 'Membership',
 };
 
 function groupBy(
