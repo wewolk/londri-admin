@@ -1,10 +1,9 @@
 'use client';
-import { useEffect, useState } from 'react';
 import type { ClosingReport, CashMethod } from '@/lib/types';
 import { formatRupiah } from '@/lib/utils';
 import { buildCashMethodRows, buildCashSourceRows } from '@/lib/cash-report.mjs';
 import {
-  Receipt, Money, Wallet, WarningCircle, CheckCircle, Coins, QrCode, Bank, ArrowRight,
+  Receipt, Wallet, WarningCircle, CheckCircle, Coins, QrCode,
 } from '@phosphor-icons/react';
 
 /* Nominal dari backend berupa string desimal ("300000.00"). Number() aman
@@ -58,13 +57,6 @@ export default function ClosingCard({ report, dateLabel }: { report: ClosingRepo
 
   const cashSources = buildCashSourceRows(cashIn);
   const cashMethods = buildCashMethodRows(cashIn.byMethod);
-  const tunaiAmount = cashMethods.find((method) => method.key === 'CASH')?.net ?? 0;
-
-  // Input opsional: kasir mengetik hasil hitung fisik laci untuk dibandingkan.
-  const [cashCount, setCashCount] = useState('');
-  useEffect(() => { setCashCount(''); }, [report.period.dateFrom, report.period.dateTo, report.period.branchId]);
-  const counted = cashCount.trim() === '' ? null : Number(cashCount.replace(/[^\d]/g, ''));
-  const cashDiff = counted === null ? null : counted - tunaiAmount;
 
   return (
     <section className={`overflow-hidden rounded-xl border shadow-card ${balanced

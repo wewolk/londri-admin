@@ -365,4 +365,22 @@ export interface ClosingReport {
     isBalanced: boolean;
   }[];
   byService: { serviceId: string; name: string; type: string; quantity: string; revenue: string }[];
+  transactions: {
+    id: string;
+    invoiceNumber: string;
+    createdAt: string;
+    customerName: string;
+    phoneNumber: string;
+    branchName: string;
+    staffName: string;
+    paymentMethod: PaymentMethod;
+    status: string;
+    subtotal: string;
+    discountAmount: string;
+    totalAmount: string;
+    membershipAmountUsed: string;
+    amountPaidAsOf: string;
+    underPaymentAsOf: string;
+    paymentStatusAsOf: 'PAID' | 'PENDING';
+  }[];
 }

@@ -59,9 +59,8 @@ export default function DashboardPage() {
   const isDark = resolved === 'dark';
   const [chartPreset, setChartPreset] = useState<'7d' | '30d' | 'month'>('7d');
   
-  const [summary, months, cashiers, sales, promos, configuredPromos] = useQueries({ queries: [
+  const [summary, cashiers, sales, promos, configuredPromos] = useQueries({ queries: [
     { queryKey: ['dashboard'], queryFn: dashboardApi.summary },
-    { queryKey: ['dashboard-months'], queryFn: dashboardApi.revenueByMonth },
     { queryKey: ['dashboard-cashiers'], queryFn: dashboardApi.revenueByCashier },
     { queryKey: ['dashboard-sales'], queryFn: dashboardApi.membershipSales },
     { queryKey: ['dashboard-promos'], queryFn: dashboardApi.mostUsedPromotions },

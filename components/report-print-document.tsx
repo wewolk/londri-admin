@@ -28,6 +28,27 @@ export default function ReportPrintDocument({
   const outstanding = num(closing?.summary.outstanding);
   const cashIn = num(closing?.cashIn.total);
   const status = rec?.isBalanced ? 'COCOK' : rec ? 'PERLU REVIEW' : 'BELUM TERSEDIA';
+  // Backend report mengirim posisi pembayaran pada akhir periode, sehingga PDF
+  // tidak berubah menjadi "Lunas" hanya karena pelunasan terjadi sesudah periode.
+  const transactions = closing?.transactions ?? stats.orders.map((order) => ({
+    id: order.id,
+    invoiceNumber: order.invoiceNumber,
+    createdAt: order.createdAt,
+    customerName: order.customerName,
+    phoneNumber: order.phoneNumber,
+    branchName: order.branch?.name || '—',
+    staffName: order.staff?.fullName || '—',
+    paymentMethod: order.paymentMethod,
+    status: order.status,
+    subtotal: order.subtotal,
+    discountAmount: order.discountAmount,
+    totalAmount: order.totalAmount,
+    membershipAmountUsed: order.membershipAmountUsed,
+    amountPaidAsOf: order.amountPaid ?? '0',
+    underPaymentAsOf: order.underPayment ?? '0',
+    paymentStatusAsOf: order.paymentStatus === 'PAID' ? 'PAID' as const : 'PENDING' as const,
+  }));
+  const statusLabel = (value: string) => STATUS_LABEL[value as keyof typeof STATUS_LABEL] ?? ({ PROCESSING: 'Diproses', DONE: 'Selesai', PICKED_UP: 'Diambil', CANCELLED: 'Dibatalkan' }[value] ?? value);
 
   return <article className="report-print-document" aria-hidden="true">
     <header className="report-print-header">
@@ -88,18 +109,18 @@ export default function ReportPrintDocument({
     </section>
 
     <section className="report-print-panel report-print-transactions">
-      <div className="report-print-section-title"><div><h2>Lampiran transaksi</h2><p>{stats.orders.length} transaksi pada periode terpilih</p></div><p>Data sumber • LONDRI POS</p></div>
+      <div className="report-print-section-title"><div><h2>Lampiran transaksi</h2><p>{transactions.length} transaksi pada periode terpilih</p></div><p>Posisi pembayaran per akhir periode • LONDRI POS</p></div>
       <table className="report-print-table report-print-transaction-table"><colgroup><col className="tx-invoice" /><col className="tx-date" /><col className="tx-customer" /><col className="tx-branch" /><col className="tx-cashier" /><col className="tx-method" /><col className="tx-order-status" /><col className="tx-payment-status" /><col className="tx-money" /><col className="tx-money" /><col className="tx-money" /><col className="tx-money" /><col className="tx-money" /></colgroup><thead><tr><th>Invoice</th><th>Tanggal</th><th>Pelanggan</th><th>Cabang</th><th>Kasir</th><th>Metode</th><th>Proses</th><th>Pembayaran</th><th className="right">Nilai</th><th className="right">Diskon</th><th className="right">Member</th><th className="right">Dibayar</th><th className="right">Sisa</th></tr></thead><tbody>
-        {stats.orders.map((order) => {
+        {transactions.map((order) => {
           const membershipUsed = num(order.membershipAmountUsed);
-          const amountPaid = num(order.amountPaid);
-          const due = num(order.underPayment);
+          const amountPaid = num(order.amountPaidAsOf);
+          const due = num(order.underPaymentAsOf);
           const invoiceValue = num(order.totalAmount) + membershipUsed;
-          const settled = order.paymentStatus === 'PAID' || (order.paymentStatus == null && due <= 0);
-          return <tr key={order.id}><td className="mono">{order.invoiceNumber}</td><td>{formatTanggal(order.createdAt)}</td><td>{order.customerName}</td><td>{order.branch?.name || '—'}</td><td>{order.staff?.fullName || '—'}</td><td>{PAYMENT_LABEL[order.paymentMethod]}</td><td>{STATUS_LABEL[order.status]}</td><td><span className={`report-print-payment-state ${settled ? 'is-paid' : 'is-due'}`}>{settled ? 'Lunas' : 'Belum lunas'}</span></td><td className="right">{formatRupiah(invoiceValue)}</td><td className="right tx-discount-value">{formatRupiah(num(order.discountAmount))}</td><td className="right">{formatRupiah(membershipUsed)}</td><td className="right">{formatRupiah(amountPaid + membershipUsed)}</td><td className={`right ${due > 0 ? 'tx-outstanding' : ''}`}>{formatRupiah(due)}</td></tr>;
+          const settled = order.paymentStatusAsOf === 'PAID' || due <= 0;
+          return <tr key={order.id}><td className="mono">{order.invoiceNumber}</td><td>{formatTanggal(order.createdAt)}</td><td>{order.customerName}</td><td>{order.branchName}</td><td>{order.staffName}</td><td>{PAYMENT_LABEL[order.paymentMethod]}</td><td>{statusLabel(order.status)}</td><td><span className={`report-print-payment-state ${settled ? 'is-paid' : 'is-due'}`}>{settled ? 'Lunas' : 'Belum lunas'}</span></td><td className="right">{formatRupiah(invoiceValue)}</td><td className="right tx-discount-value">{formatRupiah(num(order.discountAmount))}</td><td className="right">{formatRupiah(membershipUsed)}</td><td className="right">{formatRupiah(amountPaid + membershipUsed)}</td><td className={`right ${due > 0 ? 'tx-outstanding' : ''}`}>{formatRupiah(due)}</td></tr>;
         })}
-      </tbody><tfoot><tr><td colSpan={8}>TOTAL {stats.orders.length} TRANSAKSI</td><td className="right">{formatRupiah(stats.orders.reduce((sum, order) => sum + num(order.totalAmount) + num(order.membershipAmountUsed), 0))}</td><td className="right">{formatRupiah(stats.orders.reduce((sum, order) => sum + num(order.discountAmount), 0))}</td><td className="right">{formatRupiah(stats.orders.reduce((sum, order) => sum + num(order.membershipAmountUsed), 0))}</td><td className="right">{formatRupiah(stats.orders.reduce((sum, order) => sum + num(order.amountPaid) + num(order.membershipAmountUsed), 0))}</td><td className="right">{formatRupiah(stats.orders.reduce((sum, order) => sum + num(order.underPayment), 0))}</td></tr></tfoot></table>
-      <p className="report-print-transaction-note">Nilai = total tagihan setelah diskon sebelum pemakaian saldo member. Dibayar mencakup pembayaran kas/QRIS dan saldo member yang dipakai. Sisa berasal dari tagihan order yang belum dibayar.</p>
+      </tbody><tfoot><tr><td colSpan={8}>TOTAL {transactions.length} TRANSAKSI</td><td className="right">{formatRupiah(transactions.reduce((sum, order) => sum + num(order.totalAmount) + num(order.membershipAmountUsed), 0))}</td><td className="right">{formatRupiah(transactions.reduce((sum, order) => sum + num(order.discountAmount), 0))}</td><td className="right">{formatRupiah(transactions.reduce((sum, order) => sum + num(order.membershipAmountUsed), 0))}</td><td className="right">{formatRupiah(transactions.reduce((sum, order) => sum + num(order.amountPaidAsOf) + num(order.membershipAmountUsed), 0))}</td><td className="right">{formatRupiah(transactions.reduce((sum, order) => sum + num(order.underPaymentAsOf), 0))}</td></tr></tfoot></table>
+      <p className="report-print-transaction-note">Posisi Dibayar dan Sisa dihitung sampai akhir periode laporan. Dibayar mencakup pembayaran kas/QRIS dan saldo member yang dipakai; pelunasan setelah periode tidak mengubah lampiran ini.</p>
     </section>
 
     <footer className="report-print-footer"><span>Londri POS • Dokumen operasional</span><span>Basis kas = tunai diterima + QRIS netto settlement. Basis omset = order Selesai/Diambil.</span></footer>

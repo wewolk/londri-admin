@@ -37,6 +37,27 @@ function fileStamp(p: Period) {
 
 function buildSheets(s: ReportStats, closing?: ClosingReport): Sheet[] {
   const num = (v: string | number | null | undefined) => Number(v ?? 0);
+  // Lampiran closing harus memakai posisi pembayaran per akhir periode dari
+  // backend, bukan amountPaid/underPayment order saat ini yang dapat berubah
+  // setelah pelunasan pada hari berikutnya.
+  const transactions = closing?.transactions ?? s.orders.map((o) => ({
+    id: o.id,
+    invoiceNumber: o.invoiceNumber,
+    createdAt: o.createdAt,
+    customerName: o.customerName,
+    phoneNumber: o.phoneNumber,
+    branchName: o.branch?.name ?? '',
+    staffName: o.staff?.fullName ?? '',
+    paymentMethod: o.paymentMethod,
+    status: o.status,
+    subtotal: o.subtotal,
+    discountAmount: o.discountAmount,
+    totalAmount: o.totalAmount,
+    membershipAmountUsed: o.membershipAmountUsed,
+    amountPaidAsOf: o.amountPaid ?? '0',
+    underPaymentAsOf: o.underPayment ?? '0',
+    paymentStatusAsOf: o.paymentStatus === 'PAID' ? 'PAID' as const : 'PENDING' as const,
+  }));
   const ringkasan: Sheet = {
     name: 'Ringkasan',
     columns: ['Metrik', 'Nilai'],
@@ -97,20 +118,23 @@ function buildSheets(s: ReportStats, closing?: ClosingReport): Sheet[] {
   };
   const transaksi: Sheet = {
     name: 'Transaksi',
-    columns: ['Invoice', 'Tanggal', 'Pelanggan', 'Telepon', 'Cabang', 'Kasir', 'Metode', 'Status', 'Subtotal', 'Diskon', 'Total'],
-    formats: ['text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'currency', 'currency', 'currency'],
-    rows: s.orders.map((o) => [
+    columns: ['Invoice', 'Tanggal', 'Pelanggan', 'Telepon', 'Cabang', 'Kasir', 'Metode', 'Proses', 'Pembayaran s.d. akhir periode', 'Subtotal', 'Diskon', 'Nilai nota', 'Dibayar s.d. akhir periode', 'Sisa s.d. akhir periode'],
+    formats: ['text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'currency', 'currency', 'currency', 'currency', 'currency'],
+    rows: transactions.map((o) => [
       o.invoiceNumber,
       formatTanggal(o.createdAt, true),
       o.customerName,
       o.phoneNumber,
-      o.branch?.name ?? '',
-      o.staff?.fullName ?? '',
+      o.branchName,
+      o.staffName,
       PAYMENT_LABEL[o.paymentMethod],
-      STATUS_LABEL[o.status],
-      Number(o.subtotal || 0),
-      Number(o.discountAmount || 0),
-      Number(o.totalAmount || 0),
+      STATUS_LABEL[o.status as keyof typeof STATUS_LABEL] ?? o.status,
+      o.paymentStatusAsOf === 'PAID' ? 'Lunas' : 'Belum lunas',
+      num(o.subtotal),
+      num(o.discountAmount),
+      num(o.totalAmount) + num(o.membershipAmountUsed),
+      num(o.amountPaidAsOf) + num(o.membershipAmountUsed),
+      num(o.underPaymentAsOf),
     ]),
   };
   return [ringkasan, perStatus, perPayment, perCashier, perBranch, transaksi];
@@ -186,7 +210,10 @@ export default function ReportsPage() {
     [period.from, period.to],
   );
   const cashChartTooLarge = cashChartCandidateDays.length > 31;
-  const cashChartDays = cashChartTooLarge ? [] : cashChartCandidateDays;
+  const cashChartDays = useMemo(
+    () => cashChartTooLarge ? [] : cashChartCandidateDays,
+    [cashChartTooLarge, cashChartCandidateDays],
+  );
   const dailyCashQueries = useQueries({
     queries: cashChartDays.map((date) => ({
       queryKey: ['report-closing-daily', date, branchId],
@@ -214,7 +241,7 @@ export default function ReportsPage() {
       return [];
     }
     return s.byDay.map((d) => ({ name: d.date.slice(5), revenue: d.revenue }));
-  }, [s, basis, closing, period.from, period.to]);
+  }, [s, basis, closing]);
 
   const paymentBreakdown = useMemo(() => {
     if (basis === 'cash' && closing) {
@@ -332,9 +359,6 @@ export default function ReportsPage() {
     { label: 'Pelanggan Unik', value: String(s.uniqueCustomers), Icon: Users, color: 'bg-primary-container text-on-primary-container' },
   ] : [];
 
-  const breakdownTotal = basis === 'cash' && closing
-    ? Number(closing.cashIn.total)
-    : (s ? s.totalRevenue : 0);
 
   return (
     <>
