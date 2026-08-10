@@ -68,7 +68,7 @@ function PermanentQrCard({ qr, onDeactivate, deactivating }: {
               disabled={deactivating}
               className="flex min-h-[44px] items-center justify-center gap-2 rounded-md bg-error px-3 font-body-md text-body-md font-semibold text-on-error active:bg-on-error-container disabled:opacity-50"
             >
-              <Power size={18} weight="bold" /> Nonaktifkan QR
+              <Power size={18} weight="bold" /> Hapus QR
             </button>
           </div>
         </>
@@ -118,7 +118,7 @@ export default function AttendanceQrPage() {
       setDeactivateTarget(null);
       if (generated?.id === qr.id) setGenerated(null);
       qc.invalidateQueries({ queryKey: ['attendance-qr'] });
-      toast.success('QR berhasil dinonaktifkan');
+      toast.success('QR berhasil dihapus');
     },
     onError: (error) => toast.error(apiMessage(error)),
   });
@@ -135,7 +135,7 @@ export default function AttendanceQrPage() {
             <div>
               <p className="font-semibold">QR berlaku permanen</p>
               <p className="mt-1 font-label-md text-label-md text-on-surface-variant dark:text-outline-variant">
-                QR dapat digunakan setiap hari sampai dinonaktifkan oleh admin.
+                QR dapat digunakan setiap hari sampai dihapus oleh admin.
               </p>
             </div>
           </div>
@@ -190,10 +190,10 @@ export default function AttendanceQrPage() {
       </div>
       <ConfirmDialog
         open={Boolean(deactivateTarget)}
-        title="Nonaktifkan QR ini?"
-        message={`QR ${deactivateTarget?.branch?.name || ''} tidak bisa dipakai lagi setelah dinonaktifkan. Riwayat presensi yang sudah tercatat tetap tersimpan.`}
+        title="Hapus QR ini?"
+        message={`QR ${deactivateTarget?.branch?.name || ''} tidak bisa dipakai lagi setelah dihapus. Riwayat presensi yang sudah tercatat tetap tersimpan.`}
         loading={deactivate.isPending}
-        confirmLabel="Nonaktifkan"
+        confirmLabel="Hapus"
         onCancel={() => setDeactivateTarget(null)}
         onConfirm={() => deactivateTarget && deactivate.mutate(deactivateTarget)}
       />

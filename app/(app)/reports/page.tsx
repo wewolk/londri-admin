@@ -7,11 +7,12 @@ import { fetchOrdersInPeriod, computeStats, periodFromPreset, PERIOD_LABEL } fro
 import type { PeriodPreset, Period, ReportStats } from '@/lib/reports';
 import type { ClosingReport } from '@/lib/types';
 import { buildCashMethodRows, buildDailyCashRow, calendarDays } from '@/lib/cash-report.mjs';
-import { exportCsv, exportXlsx, type Sheet } from '@/lib/export';
+import { exportCsv, exportXlsx, type CellFormat, type Sheet } from '@/lib/export';
 import { formatRupiah, formatTanggal } from '@/lib/utils';
 import { STATUS_LABEL, PAYMENT_LABEL } from '@/lib/labels';
 import PageHeader from '@/components/page-header';
 import ClosingCard from '@/components/closing-card';
+import ReportPrintDocument from '@/components/report-print-document';
 import { useTheme } from '@/lib/theme';
 import { toast } from '@/hooks/useToast';
 import {
@@ -64,29 +65,40 @@ function buildSheets(s: ReportStats, closing?: ClosingReport): Sheet[] {
       ['Tingkat Penyelesaian (%)', Math.round(s.completionRate * 100)],
     ],
   };
+  ringkasan.rowFormats = ringkasan.rows.map(([label]) => {
+    const key = String(label).toLowerCase();
+    const currency = ['nilai nota', 'belum dibayar', 'dibayar saldo member', 'seharusnya diterima', 'tercatat diterima', 'selisih', 'pelunasan nota lama', 'total kas masuk', 'total diskon'].includes(key) || key === 'cash' || key === 'qris';
+    const count = ['total order', 'order selesai', 'order dibatalkan', 'pelanggan unik'].includes(key);
+    return ['text', currency ? 'currency' : count ? 'count' : key.includes('tingkat penyelesaian') ? 'percent' : 'text'] as CellFormat[];
+  });
   const perStatus: Sheet = {
     name: 'Per Status',
     columns: ['Status', 'Jumlah Order', 'Revenue'],
+    formats: ['text', 'count', 'currency'],
     rows: s.byStatus.map((b) => [b.label, b.count, b.revenue]),
   };
   const perPayment: Sheet = {
     name: 'Per Pembayaran',
     columns: ['Metode', 'Jumlah Order', 'Revenue'],
+    formats: ['text', 'count', 'currency'],
     rows: s.byPayment.map((b) => [b.label, b.count, b.revenue]),
   };
   const perCashier: Sheet = {
     name: 'Per Kasir',
     columns: ['Kasir', 'Jumlah Order', 'Revenue'],
+    formats: ['text', 'count', 'currency'],
     rows: s.byCashier.map((b) => [b.label, b.count, b.revenue]),
   };
   const perBranch: Sheet = {
     name: 'Per Cabang',
     columns: ['Cabang', 'Jumlah Order', 'Revenue'],
+    formats: ['text', 'count', 'currency'],
     rows: s.byBranch.map((b) => [b.label, b.count, b.revenue]),
   };
   const transaksi: Sheet = {
     name: 'Transaksi',
     columns: ['Invoice', 'Tanggal', 'Pelanggan', 'Telepon', 'Cabang', 'Kasir', 'Metode', 'Status', 'Subtotal', 'Diskon', 'Total'],
+    formats: ['text', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'currency', 'currency', 'currency'],
     rows: s.orders.map((o) => [
       o.invoiceNumber,
       formatTanggal(o.createdAt, true),
@@ -274,7 +286,19 @@ export default function ReportsPage() {
       }
       const sheets = buildSheets(s, closing);
       if (kind === 'xlsx') {
-        exportXlsx(sheets, `laporan-londri-${stamp}`).then(() => toast.success('Excel diunduh')).catch(() => toast.error('Gagal ekspor Excel'));
+        const branchName = branchId ? branches?.items?.find((branch) => branch.id === branchId)?.name || 'Cabang terpilih' : 'Semua cabang';
+        exportXlsx(sheets, `laporan-londri-${stamp}`, {
+          title: 'Laporan Closing & Operasional',
+          subtitle: `${periodLabel} • ${branchName}`,
+          metadata: [
+            ['Periode', `${s.period.from} s/d ${s.period.to}`],
+            ['Cabang', branchName],
+            ['Basis', basis === 'cash' ? 'Kas masuk' : 'Omset'],
+            ['Dicetak', `${formatTanggal(new Date(), true)} WIB`],
+            ['Status closing', closing?.reconciliation.isBalanced ? 'COCOK' : closing ? 'PERLU REVIEW' : 'BELUM TERSEDIA'],
+            ['Sumber data', 'Londri POS'],
+          ],
+        }).then(() => toast.success('Workbook Excel diunduh')).catch(() => toast.error('Gagal ekspor Excel'));
         return;
       }
       const summary = sheets[0];
@@ -346,7 +370,14 @@ export default function ReportsPage() {
         </div>
       } />
 
-      <div className="space-y-5 p-4">
+      {s && <ReportPrintDocument
+        stats={s}
+        closing={closing}
+        branchName={branchId ? branches?.items?.find((branch) => branch.id === branchId)?.name : undefined}
+        basis={basis}
+      />}
+
+      <div className="space-y-5 p-4 report-screen-content">
         <div className="print:hidden">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
             {PRESETS.map((p) => (

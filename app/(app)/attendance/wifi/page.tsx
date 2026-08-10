@@ -104,7 +104,7 @@ export default function AttendanceWifiPage() {
   const deactivate = useMutation({
     mutationFn: (target: BranchWifiCredential) => attendanceWifiApi.deactivate(target.id, target.branchId),
     onSuccess: () => {
-      toast.success('Wi-Fi dinonaktifkan');
+      toast.success('Wi-Fi dihapus');
       setDeactivateTarget(null);
       refresh();
     },
@@ -198,7 +198,7 @@ export default function AttendanceWifiPage() {
             {activeCount === 1 && status !== 'inactive' && (
               <div className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning-container/60 p-3 font-label-md text-label-md text-on-warning-container">
                 <WarningCircle size={18} className="mt-0.5 shrink-0" />
-                Menonaktifkan Wi-Fi aktif terakhir membuat scan kembali mengikuti grace period backend.
+                Menghapus Wi-Fi aktif terakhir membuat scan kembali mengikuti grace period backend.
               </div>
             )}
 
@@ -237,7 +237,7 @@ export default function AttendanceWifiPage() {
                       </button>
                       {credential.isActive && (
                         <button onClick={() => setDeactivateTarget(credential)} className="flex min-h-[40px] items-center gap-2 rounded-md bg-error px-3 font-label-md text-label-md font-semibold text-on-error active:bg-on-error-container">
-                          <Power size={17} /> Nonaktifkan
+                          <Power size={17} /> Hapus
                         </button>
                       )}
                     </div>
@@ -286,10 +286,10 @@ export default function AttendanceWifiPage() {
 
       <ConfirmDialog
         open={Boolean(deactivateTarget)}
-        title="Nonaktifkan Wi-Fi?"
+        title="Hapus Wi-Fi?"
         message="Credential tetap tersimpan dan bisa diaktifkan kembali. Jika ini Wi-Fi aktif terakhir, scan dapat kembali mengikuti grace period backend."
         loading={deactivate.isPending}
-        confirmLabel="Nonaktifkan"
+        confirmLabel="Hapus"
         onCancel={() => setDeactivateTarget(null)}
         onConfirm={() => deactivateTarget && deactivate.mutate(deactivateTarget)}
       />

@@ -1,13 +1,13 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { SquaresFour, Receipt, UsersThree, Stack, GearSix } from '@phosphor-icons/react';
+import { SquaresFour, Receipt, Stack, ChartBar, GearSix } from '@phosphor-icons/react';
 
 const items = [
   { href: '/dashboard', label: 'Dashboard', Icon: SquaresFour },
   { href: '/orders', label: 'Order', Icon: Receipt },
-  { href: '/memberships', label: 'Member', Icon: UsersThree },
   { href: '/master', label: 'Master', Icon: Stack },
+  { href: '/reports', label: 'Laporan', Icon: ChartBar },
   { href: '/settings', label: 'Setting', Icon: GearSix },
 ];
 
