@@ -35,6 +35,8 @@ interface CrudPageProps<T extends { id: string }> {
   fromItem?: (item: T) => Record<string, string | boolean>;
   renderCard: (item: T, actions: { edit: () => void; remove: () => void }) => React.ReactNode;
   validate?: (form: Record<string, string | boolean>, isEditing: boolean) => Record<string, string>;
+  /** Dipanggil hanya saat item baru berhasil dibuat; password hanya tersedia pada momen ini. */
+  onCreated?: (item: T, form: Record<string, string | boolean>) => void;
 }
 
 export default function CrudPage<T extends { id: string }>(props: CrudPageProps<T>) {
@@ -63,11 +65,16 @@ export default function CrudPage<T extends { id: string }>(props: CrudPageProps<
   });
 
   const save = useMutation({
-    mutationFn: async (payload: unknown) => editing
-      ? api.put(`${props.endpoint}/${editing.id}`, payload)
-      : api.post(props.endpoint, payload),
-    onSuccess: () => {
-      toast.success(editing ? 'Berhasil diperbarui' : 'Berhasil ditambahkan');
+    mutationFn: async (payload: unknown) => {
+      const created = !editing;
+      const response = editing
+        ? await api.put(`${props.endpoint}/${editing.id}`, payload)
+        : await api.post(`${props.endpoint}`, payload);
+      return { created, item: response.data.data as T };
+    },
+    onSuccess: ({ created, item }) => {
+      if (created) props.onCreated?.(item, form);
+      toast.success(created ? 'Berhasil ditambahkan' : 'Berhasil diperbarui');
       setSheetOpen(false);
       qc.invalidateQueries({ queryKey: [props.queryKey] });
     },
@@ -95,7 +102,7 @@ export default function CrudPage<T extends { id: string }>(props: CrudPageProps<
         <SearchInput value={search} onChange={setSearch} placeholder={props.searchPlaceholder || 'Cari…'} />
       </div>
       {listQuery.isLoading ? <SkeletonList /> : items.length ? (
-        <div className="space-y-3 p-4">
+        <div className="space-y-3 p-4 pb-24">
           {items.map((item) => (
             <div key={item.id}>
               {props.renderCard(item, { edit: () => openEdit(item), remove: () => setDeleteTarget(item) })}
@@ -119,7 +126,7 @@ export default function CrudPage<T extends { id: string }>(props: CrudPageProps<
                   {f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               ) : f.type === 'switch' ? (
-                <button type="button" onClick={() => setForm({ ...form, [f.name]: !form[f.name] })}
+                <button type="button" role="switch" aria-checked={Boolean(form[f.name])} aria-label={f.label} onClick={() => setForm({ ...form, [f.name]: !form[f.name] })}
                   className={`relative h-8 w-14 rounded-full transition-colors ${form[f.name] ? 'bg-success' : 'bg-surface-container-high'}`}>
                   <span className={`absolute top-1 h-6 w-6 rounded-full bg-surface-container-lowest shadow-card transition-[left] ${form[f.name] ? 'left-7' : 'left-1'}`} />
                 </button>

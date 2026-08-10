@@ -48,22 +48,22 @@ export default function AttendancePage() {
       } />
       <div className="glass-strong space-y-2 px-4 py-3">
         <div className="grid grid-cols-2 gap-2">
-          <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="min-h-[44px] rounded-md border border-border-subtle dark:border-outline-variant/25 bg-surface-container-lowest dark:bg-inverse-surface px-3 font-body-md text-body-md">
+          <select aria-label="Filter cabang" value={branchId} onChange={(e) => setBranchId(e.target.value)} className="min-h-[44px] min-w-0 w-full rounded-md border border-border-subtle dark:border-outline-variant/25 bg-surface-container-lowest dark:bg-inverse-surface px-3 font-body-md text-body-md">
             <option value="">Semua cabang</option>
             {(branches?.items || []).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
-          <select value={staffId} onChange={(e) => setStaffId(e.target.value)} className="min-h-[44px] rounded-md border border-border-subtle dark:border-outline-variant/25 bg-surface-container-lowest dark:bg-inverse-surface px-3 font-body-md text-body-md">
+          <select aria-label="Filter staff" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="min-h-[44px] min-w-0 w-full rounded-md border border-border-subtle dark:border-outline-variant/25 bg-surface-container-lowest dark:bg-inverse-surface px-3 font-body-md text-body-md">
             <option value="">Semua staff</option>
             {(staffs?.items || []).map((s) => <option key={s.id} value={s.id}>{s.fullName}</option>)}
           </select>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <select value={type} onChange={(e) => setType(e.target.value as AttendanceType | '')} className="min-h-[44px] rounded-md border border-border-subtle dark:border-outline-variant/25 bg-surface-container-lowest dark:bg-inverse-surface px-3 font-body-md text-body-md">
+          <select aria-label="Filter tipe presensi" value={type} onChange={(e) => setType(e.target.value as AttendanceType | '')} className="min-h-[44px] min-w-0 w-full rounded-md border border-border-subtle dark:border-outline-variant/25 bg-surface-container-lowest dark:bg-inverse-surface px-3 font-body-md text-body-md">
             <option value="">Semua tipe</option>
             <option value="CHECK_IN">Check-in</option>
             <option value="CHECK_OUT">Check-out</option>
           </select>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="min-h-[44px] rounded-md border border-border-subtle dark:border-outline-variant/25 bg-surface-container-lowest dark:bg-inverse-surface px-3 font-body-md text-body-md" />
+          <input aria-label="Filter tanggal presensi" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="min-h-[44px] min-w-0 w-full rounded-md border border-border-subtle dark:border-outline-variant/25 bg-surface-container-lowest dark:bg-inverse-surface px-3 font-body-md text-body-md" />
         </div>
       </div>
       {query.isLoading ? <SkeletonList /> : (
@@ -73,11 +73,11 @@ export default function AttendancePage() {
               <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg ${a.attendanceType === 'CHECK_IN' ? 'bg-success-container text-on-success-container' : 'bg-warning-container text-on-warning-container'}`}>
                 {a.attendanceType === 'CHECK_IN' ? <SignIn size={20} weight='bold' /> : <SignOut size={20} weight='bold' />}
               </div>
-              <div className="flex-1">
-                <p className="font-semibold">{a.staff?.fullName}</p>
-                <p className="font-label-md text-label-md text-outline dark:text-outline-variant">{a.branch?.name} · {a.attendanceType === 'CHECK_IN' ? 'Masuk' : 'Keluar'}</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">{a.staff?.fullName || '—'}</p>
+                <p className="truncate font-label-md text-label-md text-outline dark:text-outline-variant">{a.branch?.name || '—'} · {a.attendanceType === 'CHECK_IN' ? 'Masuk' : 'Keluar'}</p>
               </div>
-              <p className="font-label-md text-label-md text-on-surface-variant dark:text-outline-variant">{formatTanggal(a.scannedAt, true)}</p>
+              <p className="shrink-0 text-right font-label-md text-label-md text-on-surface-variant dark:text-outline-variant">{formatTanggal(a.scannedAt, true)}</p>
             </div>
           ))}
           {!(query.data?.pages[0]?.items?.length) && <EmptyState icon={ClipboardText} title="Belum ada presensi" />}

@@ -3,6 +3,8 @@ export type OrderStatus = 'DI_PROSES' | 'SELESAI' | 'DIAMBIL' | 'CANCELLED';
 export type PaymentMethod = 'CASH' | 'QRIS' | 'MEMBERSHIP';
 export type MembershipStatus = 'ACTIVE' | 'EXPIRED' | 'BLOCKED';
 export type DiscountType = 'PERCENTAGE' | 'FIXED_AMOUNT';
+export type PromotionAudience = 'ALL' | 'MEMBER' | 'NON_MEMBER' | 'NEW_CUSTOMER' | 'NTH_WASH';
+export type PromotionBenefitType = 'DISCOUNT' | 'FREE_SERVICE' | 'GIFT';
 export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT';
 export type WifiBand = '2.4GHz' | '5GHz';
 export type BalanceLogType = 'USAGE' | 'ADJUSTMENT' | 'REFUND';
@@ -95,17 +97,38 @@ export interface MembershipTier {
   updatedAt: string;
 }
 
+export interface PromotionDiscountBenefit {
+  discountType: DiscountType;
+  discountValue: string;
+  maximumDiscount: string | null;
+}
+export interface PromotionFreeServiceBenefit {
+  serviceId: string;
+  serviceName: string | null;
+  quantity: string | null;
+}
+export interface PromotionGiftBenefit {
+  giftName: string;
+  quantity: string | null;
+}
+export type PromotionBenefit = PromotionDiscountBenefit | PromotionFreeServiceBenefit | PromotionGiftBenefit;
+
+/** Shape returned by GET/POST/PUT /promotions. Benefit is intentionally nested. */
 export interface Promotion {
   id: string;
   code: string;
   name: string;
-  discountType: DiscountType;
-  discountValue: string;
+  branchId: string | null;
+  audience: PromotionAudience;
+  nthWash: number | null;
   minimumPurchase: string;
-  maximumDiscount: string | null;
+  quota: number | null;
+  quotaPerCustomer: number | null;
   startDate: string;
   endDate: string;
   isActive: boolean;
+  benefitType: PromotionBenefitType;
+  benefit: PromotionBenefit;
   createdAt: string;
   updatedAt: string;
 }
@@ -287,7 +310,6 @@ export interface MostUsedPromotion {
 }
 
 // ===== Laporan closing (GET /dashboard/report) =====
-// Semua nominal dikirim backend sebagai string desimal ("300000.00").
 export type CashMethod = 'CASH' | 'QRIS';
 
 export interface ClosingReport {
@@ -295,27 +317,25 @@ export interface ClosingReport {
   summary: {
     orderCount: number;
     cancelledCount: number;
-    newOrderValue: string;   // nilai seluruh nota yang dibuat pada periode
+    newOrderValue: string;
     discountTotal: string;
-    outstanding: string;     // piutang: nota yang belum dibayar
+    outstanding: string;
     quantityByServiceType: { type: string; quantity: string }[];
   };
   cashIn: {
-    total: string;               // seluruh uang yang masuk pada periode
-    fromNewOrders: string;       // bagian yang berasal dari nota periode ini
-    fromPreviousOrders: string;  // pelunasan nota periode sebelumnya
+    total: string;
+    fromNewOrders: string;
+    fromPreviousOrders: string;
     byPurpose: Record<string, string>;
     byMethod: {
       method: CashMethod;
-      amount: string;        // neto diterima
-      feeAmount: string;     // biaya (mis. QRIS)
-      grossAmount: string;   // bruto sebelum fee
+      amount: string;
+      feeAmount: string;
+      grossAmount: string;
       transactionCount: number;
     }[];
   };
   membershipUsed: { amount: string; orderCount: number };
-  /* Jembatan nota -> uang. difference = newOrderValue - paidOnNewOrders
-     - membershipUsed - outstanding. isBalanced true berarti closing cocok. */
   reconciliation: {
     newOrderValue: string;
     paidOnNewOrders: string;

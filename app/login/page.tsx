@@ -42,22 +42,22 @@ export default function LoginPage() {
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setError(''); mutation.mutate(); }}>
           {error && <div role="alert" className="rounded-md bg-error-container px-md py-3 font-body-md text-body-md text-on-error-container">{error}</div>}
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Username</label>
+            <label htmlFor="username" className="mb-1.5 block text-sm font-medium">Username</label>
             <div className="relative">
               <User size={20} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-outline" />
-              <input value={username} onChange={(e) => setUsername(e.target.value)} required autoComplete="username"
+              <input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required autoComplete="username"
                 className={inputCls} placeholder="admin" />
             </div>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Password</label>
+            <label htmlFor="password" className="mb-1.5 block text-sm font-medium">Password</label>
             <div className="relative">
               <LockKey size={20} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-outline" />
-              <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
+              <input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
                 required autoComplete="current-password"
                 className={inputCls + ' pr-11'} placeholder="••••••••" />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label="Tampilkan password"
-                className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-outline active:bg-surface-container-low dark:active:bg-white/5">
+              <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'} aria-pressed={showPassword}
+                className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-outline active:bg-surface-container-low dark:active:bg-white/5">
                 {showPassword ? <EyeSlash size={20} /> : <Eye size={20} />}
               </button>
             </div>

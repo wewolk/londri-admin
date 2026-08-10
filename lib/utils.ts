@@ -5,6 +5,7 @@ export function formatRupiah(value: string | number | null | undefined) {
 export function formatTanggal(value: string | Date | null | undefined, withTime = false) {
   if (!value) return '-';
   const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
   return new Intl.DateTimeFormat('id-ID', withTime
     ? { dateStyle: 'medium', timeStyle: 'short' }
     : { dateStyle: 'medium' }).format(date);

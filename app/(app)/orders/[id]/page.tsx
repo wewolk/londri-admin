@@ -1,40 +1,15 @@
 'use client';
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import PageHeader from '@/components/page-header';
-import BottomSheet from '@/components/bottom-sheet';
 import { ordersApi } from '@/lib/api';
-import { apiMessage } from '@/lib/api/client';
 import { formatRupiah, formatTanggal } from '@/lib/utils';
-import { STATUS_BADGE, STATUS_LABEL, STATUS_DOT, PAYMENT_LABEL, ORDER_FLOW } from '@/lib/labels';
-import type { OrderStatus } from '@/lib/types';
-import { toast } from '@/hooks/useToast';
+import { STATUS_BADGE, STATUS_LABEL, STATUS_DOT, PAYMENT_LABEL } from '@/lib/labels';
 import SkeletonList from '@/components/skeleton-list';
 
 export default function OrderDetailPage({ params }: { params: { id: string } }) {
-  const qc = useQueryClient();
-  const [sheet, setSheet] = useState(false);
   const { data: order, isLoading } = useQuery({ queryKey: ['order', params.id], queryFn: () => ordersApi.get(params.id) });
-  const mutation = useMutation({
-    mutationFn: ({ status }: { status: OrderStatus }) => ordersApi.updateStatus(params.id, status),
-    onSuccess: () => {
-      toast.success('Status diperbarui');
-      setSheet(false);
-      qc.invalidateQueries({ queryKey: ['order', params.id] });
-      qc.invalidateQueries({ queryKey: ['orders'] });
-      // Status nota berubah -> revenue/laporan ikut berubah. Tanpa ini,
-      // halaman Laporan menyajikan angka basi sampai cache-nya kedaluwarsa.
-      qc.invalidateQueries({ queryKey: ['report'] });
-      // key dashboard terpecah ('dashboard', 'dashboard-months', ...), jadi cocokkan per-prefix string.
-      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === 'string' && (q.queryKey[0] as string).startsWith('dashboard') });
-    },
-    onError: (e) => toast.error(apiMessage(e)),
-  });
 
   if (isLoading || !order) return <><PageHeader title="Detail Order" back /><SkeletonList rows={5} /></>;
-  const currentIdx = ORDER_FLOW.indexOf(order.status);
-  const isTerminal = order.status === 'DIAMBIL' || order.status === 'CANCELLED';
-  const nextOptions = !isTerminal ? [ORDER_FLOW[currentIdx + 1], 'CANCELLED' as OrderStatus].filter(Boolean) : [];
 
   return (
     <>
@@ -107,26 +82,6 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
         </section>
       </div>
 
-      {!isTerminal && nextOptions.length > 0 && (
-        <div className="glass-strong fixed inset-x-0 bottom-16 z-40 mx-auto max-w-md p-4 safe-bottom">
-          <button onClick={() => setSheet(true)} className="min-h-[48px] w-full rounded-md bg-primary font-semibold text-on-primary transition-colors active:bg-on-primary-container">
-            Ubah Status
-          </button>
-        </div>
-      )}
-
-      <BottomSheet open={sheet} onClose={() => setSheet(false)} title="Ubah Status Order">
-        <div className="space-y-2">
-          {nextOptions.map((s) => (
-            <button key={s} disabled={mutation.isPending} onClick={() => mutation.mutate({ status: s })}
-              className={`flex min-h-[48px] w-full items-center justify-between rounded-md border px-md text-left font-medium active:bg-surface-container-low dark:active:bg-white/5 disabled:opacity-50 ${s === 'CANCELLED' ? 'border-error/40 text-error' : 'border-border-subtle dark:border-outline-variant/25'}`}>
-              {STATUS_LABEL[s]}
-              <span className={`chip font-semibold ${STATUS_BADGE[s]}`}>{STATUS_LABEL[s]}</span>
-            </button>
-          ))}
-          <p className="pt-2 font-label-md text-label-md text-outline dark:text-outline-variant">Status hanya bisa maju satu langkah sesuai alur, atau dibatalkan.</p>
-        </div>
-      </BottomSheet>
     </>
   );
 }

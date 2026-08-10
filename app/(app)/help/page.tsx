@@ -26,7 +26,7 @@ const SECTIONS: Section[] = [
     id: 'dashboard', title: 'Dashboard', Icon: SquaresFour,
     color: 'bg-primary-container text-on-primary-container',
     faqs: [
-      { q: 'Apa isi halaman Dashboard?', a: 'Ringkasan cepat bisnis: revenue hari ini, revenue bulan ini, jumlah order, member aktif, grafik revenue per bulan, performa kasir, penjualan membership per tier, dan promo terpopuler.' },
+      { q: 'Apa isi halaman Dashboard?', a: 'Ringkasan cepat bisnis: pendapatan hari ini dan bulan ini, jumlah order, member aktif, grafik pendapatan berdasarkan rentang waktu, performa kasir, penjualan membership, dan promo terpopuler.' },
       { q: 'Kenapa revenue hari ini Rp 0 padahal ada order?', a: 'Revenue hanya dihitung dari order berstatus "Selesai" (SELESAI) atau "Diambil" (DIAMBIL). Order yang masih Diproses belum masuk hitungan revenue. Ubah status order ke Selesai agar terhitung.', tags: 'revenue nol kosong 0' },
       { q: 'Bagaimana buka laporan lengkap?', a: 'Tekan tautan "Laporan lengkap →" pada kartu Revenue per bulan, atau buka menu Master → Laporan.' },
     ],
@@ -36,9 +36,9 @@ const SECTIONS: Section[] = [
     color: 'bg-primary-container text-on-primary-container',
     faqs: [
       { q: 'Bagaimana mencari order tertentu?', a: 'Gunakan kolom pencarian di halaman Order. Ketik nomor invoice, nama pelanggan, atau nomor telepon. Tekan ikon X untuk menghapus pencarian.' },
-      { q: 'Bagaimana memfilter order?', a: 'Gunakan chip status cepat (Semua, Menunggu, Diproses, dst) di bawah kolom pencarian untuk menyaring berdasarkan status.', tags: 'filter status saring' },
+      { q: 'Bagaimana memfilter order?', a: 'Gunakan chip status cepat (Semua, Diproses, Selesai, Diambil, atau Dibatalkan) di bawah kolom pencarian. Gunakan tombol Filter untuk cabang, metode bayar, dan rentang tanggal.', tags: 'filter status saring' },
       { q: 'Bagaimana mengubah status order?', a: 'Buka detail order dengan menekan kartunya, lalu pilih status berikutnya pada alur status. Setiap perubahan tercatat di riwayat (log) order.', tags: 'ubah status proses cuci selesai' },
-      { q: 'Apa arti tiap status order?', a: 'Menunggu → Diproses → Dicuci → Dikeringkan → Disetrika → Siap Diambil → Selesai. Status "Dibatalkan" berarti order tidak dilanjutkan.' },
+      { q: 'Apa arti tiap status order?', a: 'Diproses berarti laundry sedang dikerjakan. Selesai berarti pengerjaan selesai dan siap diserahkan. Diambil berarti pelanggan sudah menerima laundry. Dibatalkan berarti order tidak dilanjutkan.' },
     ],
   },
   {
@@ -65,7 +65,7 @@ const SECTIONS: Section[] = [
     id: 'attendance', title: 'Presensi (QR)', Icon: QrCode,
     color: 'bg-primary-container text-on-primary-container',
     faqs: [
-      { q: 'Bagaimana membuat QR presensi?', a: 'Buka Master → Presensi → QR. Pilih cabang dan masa berlaku QR (jam), lalu buat. Staff memindai QR ini untuk check-in/check-out.', tags: 'qr code absen scan' },
+      { q: 'Bagaimana membuat QR presensi?', a: 'Buka Master → Presensi → QR, lalu pilih cabang dan buat QR permanen. QR dapat dipakai untuk check-in/check-out sampai dinonaktifkan oleh admin.', tags: 'qr code absen scan permanen' },
       { q: 'Di mana melihat log kehadiran staff?', a: 'Halaman Presensi menampilkan daftar check-in/check-out. Bisa difilter per staff, cabang, jenis, dan tanggal.' },
     ],
   },
@@ -76,7 +76,7 @@ const SECTIONS: Section[] = [
       { q: 'Apa itu Master Data?', a: 'Kumpulan data dasar yang dipakai di seluruh app: Cabang, Staff, Role Staff, Layanan, Tier Membership, Promo, dan Presensi.' },
       { q: 'Bagaimana menambah / mengubah / menghapus data?', a: 'Di tiap halaman master, tekan tombol + (kanan bawah) untuk menambah. Untuk mengubah/menghapus, buka item lalu gunakan aksi yang tersedia. Perubahan langsung tersimpan ke server.', tags: 'tambah edit hapus crud' },
       { q: 'Bagaimana mengatur harga layanan?', a: 'Buka Master → Layanan, tambah atau ubah layanan lalu isi harga, tipe, dan estimasi jam pengerjaan.', tags: 'harga layanan servis' },
-      { q: 'Bagaimana membuat kode promo?', a: 'Buka Master → Promo. Buat kode, pilih tipe diskon (persen atau nominal), nilai, minimum pembelian, dan rentang tanggal berlaku.', tags: 'diskon voucher kupon' },
+      { q: 'Bagaimana membuat promo?', a: 'Buka Master → Promo. Buat kode dan nama, lalu pilih manfaatnya: diskon persen/nominal, gratis layanan, atau hadiah. Atur target pelanggan, cabang, kuota, minimum belanja, dan periode berlaku.', tags: 'diskon voucher kupon hadiah gratis layanan' },
     ],
   },
   {
@@ -94,13 +94,13 @@ function FaqItem({ faq, highlight }: { faq: Faq; highlight: string }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="border-t border-border-subtle dark:border-outline-variant/20 first:border-t-0">
-      <button onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-3 py-3 text-left">
+      <button onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls={`faq-${faq.q}`}
+        className="flex min-h-[44px] w-full items-center gap-3 py-3 text-left">
         <span className="flex-1 text-sm font-medium">{mark(faq.q, highlight)}</span>
         <CaretDown size={16} className={`shrink-0 text-outline dark:text-outline-variant transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
       <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
-        <div className="overflow-hidden">
+        <div id={`faq-${faq.q}`} className="overflow-hidden">
           <p className="pb-3 font-body-md text-body-md leading-relaxed text-on-surface-variant dark:text-outline-variant">{faq.a}</p>
         </div>
       </div>

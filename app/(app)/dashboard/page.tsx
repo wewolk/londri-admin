@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { dashboardApi } from '@/lib/api';
+import { dashboardApi, promotionsApi } from '@/lib/api';
 import { formatRupiah } from '@/lib/utils';
 import { fetchOrdersInPeriod, periodFromPreset } from '@/lib/reports';
 import PageHeader from '@/components/page-header';
@@ -59,12 +59,15 @@ export default function DashboardPage() {
   const isDark = resolved === 'dark';
   const [chartPreset, setChartPreset] = useState<'7d' | '30d' | 'month'>('7d');
   
-  const [summary, months, cashiers, sales, promos] = useQueries({ queries: [
+  const [summary, months, cashiers, sales, promos, configuredPromos] = useQueries({ queries: [
     { queryKey: ['dashboard'], queryFn: dashboardApi.summary },
     { queryKey: ['dashboard-months'], queryFn: dashboardApi.revenueByMonth },
     { queryKey: ['dashboard-cashiers'], queryFn: dashboardApi.revenueByCashier },
     { queryKey: ['dashboard-sales'], queryFn: dashboardApi.membershipSales },
     { queryKey: ['dashboard-promos'], queryFn: dashboardApi.mostUsedPromotions },
+    // Statistik pemakaian tidak dapat menampilkan promo yang belum pernah ditebus.
+    // Query ini memberi owner konteks yang jujur: promo aktif ada, tetapi belum ada transaksi.
+    { queryKey: ['dashboard-configured-promotions'], queryFn: () => promotionsApi.list({ limit: 100, isActive: 'true' }) },
   ]});
   
   // Data untuk delta vs kemarin
@@ -119,6 +122,12 @@ export default function DashboardPage() {
   const gridColor = isDark ? '#3e4850' : '#f2f3ff';
   const tooltipStyle = { backgroundColor: isDark ? '#2a3040' : '#ffffff', border: `1px solid ${isDark ? '#3e4850' : '#e2e8f0'}`, borderRadius: 12, fontSize: 12 };
   const tooltipLabelStyle = { color: isDark ? '#eef0ff' : '#151b2b', fontWeight: 600 };
+  const cashierRows = cashiers.data || [];
+  const membershipSales = sales.data;
+  const membershipUsageTotal = (membershipSales?.balanceUsage || []).reduce((sum, row) => sum + Number(row.totalUsed || 0), 0);
+  const membershipUsageMembers = membershipSales?.balanceUsage?.length || 0;
+  const activePromotionCount = configuredPromos.data?.total || 0;
+  const promotionRows = promos.data || [];
 
   return (
     <>
@@ -159,7 +168,7 @@ export default function DashboardPage() {
           {smallCards.map((c) => <div key={c.label} className="rounded-xl border border-border-subtle dark:border-outline-variant/20 glass p-3.5 shadow-card">
             <div className={`mb-2.5 flex h-8 w-8 items-center justify-center rounded-xl ${c.color}`}><c.Icon size={16} weight="duotone" /></div>
             <p className="font-label-md text-label-md text-on-surface-variant dark:text-outline-variant">{c.label}</p>
-            <p className="mt-0.5 truncate font-data-tabular text-data-tabular font-bold tabular-nums text-on-surface dark:text-inverse-on-surface">{c.value}</p>
+            <p className="mt-0.5 break-words font-data-tabular text-data-tabular font-bold tabular-nums text-on-surface dark:text-inverse-on-surface">{c.value}</p>
           </div>)}
         </div>
 
@@ -232,23 +241,15 @@ export default function DashboardPage() {
             <h2 className="font-headline-md text-headline-md text-on-surface dark:text-inverse-on-surface">Revenue per kasir</h2>
           </div>
           <div className="space-y-4 p-md">
-            {(cashiers.data || []).slice(0, 5).map((x, i, arr) => {
+            {cashierRows.slice(0, 5).map((x, i, arr) => {
               const maxRev = Number(arr[0].totalRevenue) || 1;
               const pct = Math.round((Number(x.totalRevenue) / maxRev) * 100);
               const barColor = i === 0 ? 'bg-primary' : i === 1 ? 'bg-primary-container' : 'bg-secondary-fixed-dim';
-              return (
-                <div key={x.staffId}>
-                  <div className="mb-1 flex items-center justify-between font-body-md text-body-md">
-                    <span className="font-medium text-on-surface dark:text-inverse-on-surface">{x.fullName}</span>
-                    <span className="font-data-tabular text-data-tabular tabular-nums">{formatRupiah(x.totalRevenue)}</span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-surface-container dark:bg-white/10">
-                    <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
-                  </div>
-                </div>
-              );
+              return <div key={x.staffId}><div className="mb-1 flex items-center justify-between gap-3 font-body-md text-body-md"><span className="min-w-0 truncate font-medium text-on-surface dark:text-inverse-on-surface">{x.fullName}</span><span className="shrink-0 font-data-tabular text-data-tabular tabular-nums">{formatRupiah(x.totalRevenue)}</span></div><div className="h-2 w-full overflow-hidden rounded-full bg-surface-container dark:bg-white/10"><div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} /></div></div>;
             })}
-            {!cashiers.data?.length && <p className="font-body-md text-body-md text-outline">Belum ada data kasir</p>}
+            {cashiers.isLoading && <p className="font-body-md text-body-md text-on-surface-variant dark:text-outline-variant">Memuat data kasir…</p>}
+            {!cashiers.isLoading && !cashiers.isError && !cashierRows.length && <div className="rounded-lg bg-surface-container-low p-3 font-body-md text-body-md text-on-surface-variant dark:bg-white/5 dark:text-outline-variant"><b className="block text-on-surface dark:text-inverse-on-surface">Belum ada revenue kasir pada periode ini</b><span className="mt-1 block font-label-md text-label-md">Yang dihitung adalah order berstatus selesai oleh role Cashier.</span></div>}
+            {cashiers.isError && <p className="font-body-md text-body-md text-error">Data kasir gagal dimuat. Muat ulang halaman untuk mencoba lagi.</p>}
           </div>
         </section>
 
@@ -256,39 +257,24 @@ export default function DashboardPage() {
           <h2 className="mb-3 font-headline-md text-headline-md text-on-surface dark:text-inverse-on-surface">Penjualan membership</h2>
           <div className="flex items-center gap-4">
             <div className="relative h-36 w-36 shrink-0">
-              {sales.data?.byTier?.length ? (
-                <>
-                  <ResponsiveContainer>
-                    <PieChart>
-                      <Pie data={sales.data.byTier} dataKey="total" nameKey="tierName" innerRadius="55%" outerRadius="100%" paddingAngle={2} strokeWidth={0}>
-                        {sales.data.byTier.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip formatter={(v) => formatRupiah(Number(v))} contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                    <p className="font-label-md text-label-md text-outline dark:text-outline-variant">Total</p>
-                    <p className="text-sm font-bold tabular-nums">{formatRupiah(sales.data.totalSales.amount)}</p>
-                  </div>
-                </>
-              ) : <div className="flex h-full items-center justify-center rounded-full bg-surface-container dark:bg-white/10 font-label-md text-label-md text-outline">Kosong</div>}
+              {membershipSales?.byTier?.length ? <><ResponsiveContainer><PieChart><Pie data={membershipSales.byTier} dataKey="total" nameKey="tierName" innerRadius="55%" outerRadius="100%" paddingAngle={2} strokeWidth={0}>{membershipSales.byTier.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip formatter={(v) => formatRupiah(Number(v))} contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} /></PieChart></ResponsiveContainer><div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"><p className="font-label-md text-label-md text-outline dark:text-outline-variant">Penjualan</p><p className="text-sm font-bold tabular-nums">{formatRupiah(membershipSales.totalSales.amount)}</p></div></> : <div className="flex h-full items-center justify-center rounded-full bg-surface-container dark:bg-white/10 font-label-md text-label-md text-on-surface-variant dark:text-outline-variant">{sales.isLoading ? 'Memuat' : 'Belum ada'}</div>}
             </div>
             <div className="min-w-0 flex-1 space-y-2">
-              {(sales.data?.byTier || []).map((t, i) => (
-                <div key={t.tierName} className="flex items-center gap-2 text-xs">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                  <span className="min-w-0 flex-1 truncate text-on-surface-variant dark:text-outline-variant">{t.tierName}</span>
-                  <b className="shrink-0 tabular-nums">{formatRupiah(t.total)}</b>
-                </div>
-              ))}
-              <p className="pt-1 font-label-md text-label-md text-outline dark:text-outline-variant">{sales.data?.totalSales.count || 0} transaksi</p>
+              {(membershipSales?.byTier || []).map((t, i) => <div key={t.tierName} className="flex items-center gap-2 text-xs"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} /><span className="min-w-0 flex-1 truncate text-on-surface-variant dark:text-outline-variant">{t.tierName}</span><b className="shrink-0 tabular-nums">{formatRupiah(t.total)}</b></div>)}
+              {!sales.isLoading && !sales.isError && !membershipSales?.byTier?.length && <><p className="font-body-md text-body-md font-semibold text-on-surface dark:text-inverse-on-surface">Belum ada pembelian membership bulan ini</p>{membershipUsageTotal > 0 && <p className="font-label-md text-label-md text-on-surface-variant dark:text-outline-variant">Saldo membership dipakai {formatRupiah(membershipUsageTotal)} oleh {membershipUsageMembers} member.</p>}</>}
+              {sales.isError && <p className="font-body-md text-body-md text-error">Data membership gagal dimuat.</p>}
+              <p className="pt-1 font-label-md text-label-md text-outline dark:text-outline-variant">{membershipSales?.totalSales.count || 0} transaksi pembelian</p>
             </div>
           </div>
         </section>
 
         <section className="rounded-xl border border-border-subtle dark:border-outline-variant/20 glass p-md shadow-card">
-          <h2 className="mb-4 font-headline-md text-headline-md text-on-surface dark:text-inverse-on-surface">Promo terpopuler</h2>
-          <div className="space-y-3">{(promos.data || []).slice(0, 5).map((p) => <div key={p.code} className="flex items-center justify-between"><div><span className="chip chip-info font-bold">{p.code}</span><span className="ml-2 text-sm">{p.name}</span></div><b className="text-sm tabular-nums">{p.usage_count}×</b></div>)}{!promos.data?.length && <p className="font-body-md text-body-md text-outline">Belum ada promo digunakan</p>}</div>
+          <div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-headline-md text-headline-md text-on-surface dark:text-inverse-on-surface">Promo terpopuler</h2><Link href="/promotions" className="shrink-0 font-label-md text-label-md font-semibold text-primary dark:text-inverse-primary">Kelola →</Link></div>
+          <div className="space-y-3">{promotionRows.slice(0, 5).map((p) => <div key={p.code} className="flex items-center justify-between gap-3"><div className="min-w-0"><span className="chip chip-info font-bold">{p.code}</span><span className="ml-2 text-sm text-on-surface dark:text-inverse-on-surface">{p.name}</span></div><b className="shrink-0 text-sm tabular-nums">{p.usage_count}×</b></div>)}
+            {promos.isLoading && <p className="font-body-md text-body-md text-on-surface-variant dark:text-outline-variant">Memuat penggunaan promo…</p>}
+            {!promos.isLoading && !promos.isError && !promotionRows.length && <div className="rounded-lg bg-surface-container-low p-3 dark:bg-white/5"><p className="font-body-md text-body-md font-semibold text-on-surface dark:text-inverse-on-surface">Belum ada promo yang dipakai pada order</p><p className="mt-1 font-label-md text-label-md text-on-surface-variant dark:text-outline-variant">{activePromotionCount ? `${activePromotionCount} promo aktif siap digunakan.` : 'Belum ada promo aktif.'}</p></div>}
+            {promos.isError && <p className="font-body-md text-body-md text-error">Data pemakaian promo gagal dimuat.</p>}
+          </div>
         </section>
       </div>
     </>
