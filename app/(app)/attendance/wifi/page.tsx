@@ -249,7 +249,7 @@ export default function AttendanceWifiPage() {
         )}
       </div>
 
-      {branchId && <button onClick={openCreate} className="fixed bottom-24 right-[max(1rem,calc(50%-14rem+1rem))] z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-on-primary shadow-fab transition-transform duration-150 active:scale-95" aria-label="Tambah Wi-Fi">
+      {branchId && <button onClick={openCreate} className="fixed bottom-[var(--app-bottom-safe)] right-[max(1rem,calc(50%-14rem+1rem))] z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-on-primary shadow-fab transition-transform duration-150 active:scale-95" aria-label="Tambah Wi-Fi">
         <WifiHigh size={25} weight="bold" />
       </button>}
 
@@ -272,7 +272,7 @@ export default function AttendanceWifiPage() {
               <option value="5GHz">5GHz</option>
             </select>
           </Field>
-          <button type="button" onClick={() => setForm({ ...form, isActive: !form.isActive })} className="flex items-center gap-3 font-body-md text-body-md">
+          <button type="button" role="switch" aria-checked={form.isActive} onClick={() => setForm({ ...form, isActive: !form.isActive })} className="flex min-h-[44px] items-center gap-3 font-body-md text-body-md">
             <span className={`flex h-7 w-12 items-center rounded-full p-1 transition-colors ${form.isActive ? 'bg-success' : 'bg-surface-container-high'}`}>
               <span className={`h-5 w-5 rounded-full bg-surface-container-lowest shadow-card transition-[transform] ${form.isActive ? 'translate-x-5' : ''}`} />
             </span>
@@ -289,6 +289,7 @@ export default function AttendanceWifiPage() {
         title="Nonaktifkan Wi-Fi?"
         message="Credential tetap tersimpan dan bisa diaktifkan kembali. Jika ini Wi-Fi aktif terakhir, scan dapat kembali mengikuti grace period backend."
         loading={deactivate.isPending}
+        confirmLabel="Nonaktifkan"
         onCancel={() => setDeactivateTarget(null)}
         onConfirm={() => deactivateTarget && deactivate.mutate(deactivateTarget)}
       />

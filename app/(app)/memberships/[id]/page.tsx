@@ -45,16 +45,16 @@ export default function MembershipDetailPage({ params }: { params: { id: string 
           <p className="mt-3 font-body-md text-body-md text-outline dark:text-outline-variant">Berlaku sampai {formatTanggal(m.expiresAt)}</p>
         </section>
 
-        <div role="tablist" className="mt-4 grid grid-cols-3 rounded-md bg-surface-container dark:bg-white/5 p-1">
+        <div role="tablist" aria-label="Detail membership" className="mt-4 grid grid-cols-3 rounded-md bg-surface-container dark:bg-white/5 p-1">
           {(['info', 'balance', 'transaksi'] as Tab[]).map((t) => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`min-h-[40px] rounded-lg text-sm font-medium ${tab === t ? 'bg-surface-container-lowest dark:bg-inverse-surface text-on-surface dark:text-inverse-on-surface shadow-card' : 'text-on-surface-variant dark:text-outline-variant'}`}>
+            <button key={t} id={`membership-tab-${t}`} role="tab" aria-selected={tab === t} aria-controls={`membership-panel-${t}`} onClick={() => setTab(t)}
+              className={`min-h-[44px] rounded-lg text-sm font-medium ${tab === t ? 'bg-surface-container-lowest dark:bg-inverse-surface text-on-surface dark:text-inverse-on-surface shadow-card' : 'text-on-surface-variant dark:text-outline-variant'}`}>
               {t === 'info' ? 'Info' : t === 'balance' ? 'Saldo' : 'Transaksi'}
             </button>
           ))}
         </div>
 
-        <div className="mt-4">
+        <div role="tabpanel" id={`membership-panel-${tab}`} aria-labelledby={`membership-tab-${tab}`} className="mt-4">
           {tab === 'info' && (
             <section className="space-y-2 rounded-xl border border-border-subtle dark:border-outline-variant/20 glass p-5 font-body-md text-body-md shadow-card">
               <p><span className="text-outline dark:text-outline-variant">Nama:</span> {m.customerName}</p>

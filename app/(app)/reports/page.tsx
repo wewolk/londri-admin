@@ -477,7 +477,7 @@ export default function ReportsPage() {
                 <div key={k.label} className="glass rounded-xl border border-border-subtle dark:border-outline-variant/20 p-3.5 shadow-card">
                   <div className={`mb-2.5 flex h-8 w-8 items-center justify-center rounded-xl ${k.color}`}><k.Icon size={16} weight="duotone" /></div>
                   <p className="font-label-md text-label-md text-on-surface-variant dark:text-outline-variant">{k.label}</p>
-                  <p className="mt-0.5 truncate text-base font-bold tabular-nums">{k.value}</p>
+                  <p className="mt-0.5 break-words text-base font-bold tabular-nums">{k.value}</p>
                 </div>
               ))}
             </div>
@@ -577,17 +577,18 @@ export default function ReportsPage() {
                   <select 
                     value={filterStatus} 
                     onChange={(e) => setFilterStatus(e.target.value)}
-                    className="neuo-inset min-h-[36px] rounded-md px-2 font-label-md text-label-md outline-none"
+                    className="neuo-inset min-h-[44px] rounded-md px-2 font-label-md text-label-md outline-none"
                   >
                     <option value="">Semua status</option>
                     <option value="SELESAI">Selesai</option>
-                    <option value="DIPROSES">Diproses</option>
-                    <option value="DIBATALKAN">Dibatalkan</option>
+                    <option value="DI_PROSES">Diproses</option>
+                    <option value="DIAMBIL">Diambil</option>
+                    <option value="CANCELLED">Dibatalkan</option>
                   </select>
                   <select 
                     value={filterPayment} 
                     onChange={(e) => setFilterPayment(e.target.value)}
-                    className="neuo-inset min-h-[36px] rounded-md px-2 font-label-md text-label-md outline-none"
+                    className="neuo-inset min-h-[44px] rounded-md px-2 font-label-md text-label-md outline-none"
                   >
                     <option value="">Semua metode</option>
                     <option value="CASH">Tunai</option>
@@ -602,6 +603,7 @@ export default function ReportsPage() {
                     <tr className="text-left font-label-md text-label-md text-on-surface-variant dark:text-outline-variant">
                       <th className="px-4 py-2 font-medium">Invoice</th>
                       <th className="px-4 py-2 font-medium">Pelanggan</th>
+                      <th className="px-4 py-2 font-medium">Metode</th>
                       <th className="px-4 py-2 font-medium">Status</th>
                       <th className="px-4 py-2 text-right font-medium">Total</th>
                     </tr>
@@ -611,6 +613,7 @@ export default function ReportsPage() {
                       <tr key={o.id} className="border-t border-border-subtle dark:border-outline-variant/20">
                         <td className="px-4 py-2.5 font-mono text-xs">{o.invoiceNumber}</td>
                         <td className="px-4 py-2.5"><span className="block max-w-[120px] truncate">{o.customerName}</span></td>
+                        <td className="px-4 py-2.5 font-label-md text-label-md text-on-surface-variant dark:text-outline-variant">{PAYMENT_LABEL[o.paymentMethod]}</td>
                         <td className="px-md py-2.5 font-label-md text-label-md text-on-surface-variant dark:text-outline-variant">{STATUS_LABEL[o.status]}</td>
                         <td className="px-4 py-2.5 text-right tabular-nums">{formatRupiah(o.totalAmount)}</td>
                       </tr>

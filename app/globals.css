@@ -58,6 +58,12 @@ html, body {
   overflow-x: clip;
 }
 
+:root {
+  /* Satu sumber ukuran chrome mobile untuk konten, FAB, dan CTA fixed. */
+  --bottom-nav-height: 4.5rem;
+  --app-bottom-safe: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 1.5rem);
+}
+
 /* Level 0 — flat. The ambient bloom layer is deliberately not reinstated;
    .app-ambient is neutralised rather than removed so any stale JSX still
    referencing it renders nothing instead of breaking layout. */
