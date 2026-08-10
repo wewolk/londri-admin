@@ -165,7 +165,13 @@ export interface Order {
   phoneNumber: string;
   address: string | null;
   paymentMethod: PaymentMethod;
+  /** PAID berarti tagihan order sudah lunas; PENDING masih memiliki sisa. */
+  paymentStatus?: 'PAID' | 'PENDING' | 'FAILED' | string;
   subtotal: string;
+  /** Sisa tagihan yang belum dibayar, sumber kebenaran status belum lunas. */
+  underPayment?: string;
+  /** Dana non-membership yang sudah dikreditkan ke order. */
+  amountPaid?: string;
   discountAmount: string;
   membershipAmountUsed: string;
   totalAmount: string;

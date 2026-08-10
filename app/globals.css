@@ -208,27 +208,94 @@ html.theme-transition body {
   }
 }
 
-/* ===== Cetak / ekspor PDF (halaman Laporan) =====
-   Sembunyikan chrome aplikasi, ratakan surface jadi kartu putih bersih,
-   dan buang batas lebar mobile agar tabel muat di kertas. */
+/* Dokumen cetak formal A4 landscape agar ringkasan dan lampiran transaksi
+   memakai area cetak yang konsisten. */
+.report-print-document { display: none; }
+
 @media print {
-  nav, .app-ambient, .print\:hidden { display: none !important; }
+  /* Chromium tidak menerapkan named page pada section secara konsisten saat
+     Save as PDF. Semua halaman memakai landscape supaya area cetak tetap sama
+     dengan lebar tabel lampiran 13 kolom. */
+  @page { size: A4 landscape; margin: 10mm; }
+  nav, .app-ambient, .print\:hidden, .report-screen-content { display: none !important; }
   header.glass-strong { display: none !important; }
+  html, body, body > * { background: #fff !important; }
+  /* Root aplikasi normalnya 448px untuk mobile webview. Saat cetak, batas ini
+     harus dilepas; kalau tidak 10 kolom lampiran diperas dan saling menimpa. */
+  body > div { width: 100% !important; max-width: none !important; margin: 0 !important; overflow: visible !important; border: 0 !important; }
+  .max-w-md { max-width: none !important; }
+  main { width: 100% !important; padding: 0 !important; }
+  .report-print-document { width: 100% !important; max-width: none !important; }
 
-  html, body { background: #fff !important; }
-  body > * { background: transparent !important; }
-  .max-w-md { max-width: 100% !important; }
-  main { padding-bottom: 0 !important; }
-
-  .glass, .glass-strong {
-    background: #fff !important;
-    box-shadow: none !important;
-    border: 1px solid #e2e8f0 !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    break-inside: avoid;
+  .report-print-document { display: block !important; color: #172033 !important; font-family: Arial, sans-serif; font-size: 9pt; line-height: 1.35; }
+  .report-print-document * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .report-print-header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 3px solid #006591; padding: 0 0 12px; }
+  .report-print-kicker { margin: 0 0 3px; color: #006591; font-size: 8pt; font-weight: 700; letter-spacing: .08em; }
+  .report-print-header h1 { margin: 0; font-size: 21pt; letter-spacing: -.02em; }
+  .report-print-header p { margin: 4px 0 0; color: #475569; }
+  .report-print-meta { min-width: 175px; border-left: 1px solid #cbd5e1; padding-left: 14px; }
+  .report-print-meta p { display: flex; justify-content: space-between; gap: 12px; margin: 0 0 4px; font-size: 8pt; }
+  .report-print-meta b { color: #64748b; }
+  .report-print-status { display: flex; justify-content: space-between; gap: 24px; margin: 16px 0; padding: 11px 13px; border: 1px solid #bae6fd; background: #f0f9ff; break-inside: avoid; }
+  .report-print-status p { margin: 0; color: #475569; }
+  .report-print-status strong { display: block; margin-top: 2px; font-size: 14pt; }
+  .report-print-status .is-good { color: #15803d; }
+  .report-print-status .is-alert { color: #b91c1c; }
+  .report-print-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+  .report-print-metric { min-height: 58px; padding: 9px 10px; border: 1px solid #cbd5e1; border-top: 3px solid #006591; background: #fff; break-inside: avoid; }
+  .report-print-metric p { margin: 0; color: #64748b; font-size: 8pt; }
+  .report-print-metric strong { display: block; margin-top: 4px; font-size: 12pt; }
+  .report-print-metric--danger { border-top-color: #dc2626; background: #fef2f2; }
+  .report-print-metric--success { border-top-color: #16a34a; background: #f0fdf4; }
+  .report-print-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 12px; break-inside: avoid; }
+  .report-print-panel { border: 1px solid #cbd5e1; padding: 11px; background: #fff; break-inside: avoid; }
+  .report-print-panel h2 { margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px solid #cbd5e1; font-size: 10pt; }
+  .report-print-row { display: flex; justify-content: space-between; gap: 16px; padding: 3px 0; border-bottom: 1px dotted #cbd5e1; }
+  .report-print-row span { color: #475569; }
+  .report-print-row strong { text-align: right; white-space: nowrap; }
+  .report-print-row--strong { margin-top: 3px; border-top: 1px solid #94a3b8; font-weight: 700; }
+  .report-print-row--negative strong { color: #b91c1c; }
+  .report-print-payment + .report-print-payment { margin-top: 7px; }
+  .report-print-table { width: 100%; border-collapse: collapse; font-size: 8pt; }
+  .report-print-table thead { display: table-header-group; }
+  .report-print-table th { padding: 5px 4px; border-bottom: 1px solid #64748b; background: #e0f2fe; color: #0f172a; text-align: left; font-size: 7.5pt; }
+  .report-print-table td { padding: 4px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  .report-print-table tbody tr:nth-child(even) { background: #f8fafc; }
+  .report-print-table .right, .report-print-table td.right { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .report-print-table .muted { color: #64748b; text-align: center; }
+  /* Lampiran dimulai di halaman baru; seluruh dokumen kini A4 landscape.
+     Lebar 255mm menyisakan ruang aman dalam area cetak 277mm. */
+  .report-print-transactions {
+    width: 255mm !important;
+    max-width: none !important;
+    margin: 12px auto 0 !important;
+    break-before: page;
   }
-  * { color: #0f172a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .print\:block { display: block !important; }
-  @page { margin: 1.4cm; }
+  .report-print-section-title { display: flex; justify-content: space-between; align-items: end; margin-bottom: 9px; }
+  .report-print-section-title h2 { margin: 0; border: 0; padding: 0; }
+  .report-print-section-title p { margin: 2px 0 0; color: #64748b; font-size: 8pt; }
+  /* 13 kolom sengaja memakai lebar eksplisit; nomor finansial tetap memperoleh
+     kolom sendiri, bukan mendorong Metode/Proses hingga bertumpuk. */
+  .report-print-transactions .report-print-table { table-layout: fixed; font-size: 7.15pt; }
+  .report-print-transaction-table .tx-invoice { width: 11%; }
+  .report-print-transaction-table .tx-date { width: 7%; }
+  .report-print-transaction-table .tx-customer { width: 9%; }
+  .report-print-transaction-table .tx-branch { width: 10%; }
+  .report-print-transaction-table .tx-cashier { width: 7%; }
+  .report-print-transaction-table .tx-method { width: 7%; }
+  .report-print-transaction-table .tx-order-status { width: 7%; }
+  .report-print-transaction-table .tx-payment-status { width: 8%; }
+  .report-print-transaction-table .tx-money { width: 6.8%; }
+  .report-print-transactions .report-print-table th { padding: 6px 4px; font-size: 6.7pt; white-space: nowrap; }
+  .report-print-transactions .report-print-table td { padding: 5px 4px; }
+  .report-print-transactions .report-print-table tr { break-inside: avoid; }
+  .report-print-transactions .tx-discount-value { padding-left: 7px !important; padding-right: 7px !important; }
+  .report-print-transactions .mono { font-family: 'Courier New', monospace; font-size: 6.4pt; }
+  .report-print-transaction-table tfoot td { border-top: 1.5px solid #006591; background: #e0f2fe; font-weight: 700; }
+  .report-print-payment-state { display: inline-block; border-radius: 999px; padding: 2px 4px; font-size: 6.4pt; font-weight: 700; line-height: 1.15; white-space: nowrap; }
+  .report-print-payment-state.is-paid { background: #dcfce7; color: #166534; }
+  .report-print-payment-state.is-due { background: #fee2e2; color: #b91c1c; }
+  .report-print-table .tx-outstanding { color: #b91c1c; font-weight: 700; }
+  .report-print-transaction-note { margin: 8px 0 0; color: #64748b; font-size: 6.8pt; line-height: 1.35; }
+  .report-print-footer { position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid #cbd5e1; padding-top: 4px; color: #64748b; font-size: 7pt; }
 }

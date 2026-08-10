@@ -65,7 +65,7 @@ const SECTIONS: Section[] = [
     id: 'attendance', title: 'Presensi (QR)', Icon: QrCode,
     color: 'bg-primary-container text-on-primary-container',
     faqs: [
-      { q: 'Bagaimana membuat QR presensi?', a: 'Buka Master → Presensi → QR, lalu pilih cabang dan buat QR permanen. QR dapat dipakai untuk check-in/check-out sampai dinonaktifkan oleh admin.', tags: 'qr code absen scan permanen' },
+      { q: 'Bagaimana membuat QR presensi?', a: 'Buka Master → Presensi → QR, lalu pilih cabang dan buat QR permanen. QR dapat dipakai untuk check-in/check-out sampai dihapus oleh admin.', tags: 'qr code absen scan permanen' },
       { q: 'Di mana melihat log kehadiran staff?', a: 'Halaman Presensi menampilkan daftar check-in/check-out. Bisa difilter per staff, cabang, jenis, dan tanggal.' },
     ],
   },
