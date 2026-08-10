@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarBlank,
-  CaretDown,
   Copy,
   Gift,
   Plus,
@@ -13,7 +12,6 @@ import {
   Tag,
   Trash,
   TShirt,
-  X,
 } from '@phosphor-icons/react';
 import { api, apiErrors, apiMessage } from '@/lib/api/client';
 import PageHeader from '@/components/page-header';
