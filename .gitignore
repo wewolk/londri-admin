@@ -37,4 +37,5 @@ next-env.d.ts
 
 # environment
 .env.local
-.env.production
+.env.productionadmin
+.env
