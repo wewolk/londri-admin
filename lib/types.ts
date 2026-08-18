@@ -243,6 +243,7 @@ export interface AttendanceQrCode {
   qrToken: string;
   isActive: boolean;
   createdAt: string;
+  updatedAt: string;
   branch?: { id: string; name: string };
   _count?: { attendances: number };
 }
