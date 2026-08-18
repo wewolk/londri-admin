@@ -6,7 +6,7 @@ import CardActions from '@/components/card-actions';
 export default function StaffRolesPage() {
   return (
     <CrudPage<StaffRole>
-      title="Role Staff" endpoint="/staff-roles" queryKey="staff-roles" searchPlaceholder="Cari role…"
+      title="Role Staff" endpoint="/staffs/roles" queryKey="roles" searchPlaceholder="Cari role…"
       initialForm={{ name: '', description: '' }}
       fields={[
         { name: 'name', label: 'Nama Role', placeholder: 'Cashier', required: true },

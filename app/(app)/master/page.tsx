@@ -15,7 +15,7 @@ const modules = [
   { href: '/reports', label: 'Laporan', desc: 'Statistik & ekspor CSV/Excel/PDF', Icon: ChartLineUp },
   { href: '/branches', label: 'Cabang', desc: 'Kelola cabang laundry', Icon: House },
   { href: '/staffs', label: 'Staff', desc: 'Akun kasir & karyawan', Icon: Users },
-  { href: '/staff-roles', label: 'Role Staff', desc: 'Hak akses staff', Icon: ShieldCheck },
+  { href: '/staff/roles', label: 'Role Staff', desc: 'Hak akses staff', Icon: ShieldCheck },
   { href: '/services', label: 'Layanan', desc: 'Jenis cucian & harga', Icon: TShirt },
   { href: '/perfumes', label: 'Parfum', desc: 'Kelola pilihan aroma laundry', Icon: Drop },
   { href: '/membership-tiers', label: 'Tier Membership', desc: 'Paket member', Icon: Crown },

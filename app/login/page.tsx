@@ -39,23 +39,40 @@ export default function LoginPage() {
 
       {/* Card form menumpuk overlap ke panel gradient */}
       <div className="glass-strong relative z-10 -mt-8 rounded-3xl px-6 pb-10 pt-8 shadow-lg">
-        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setError(''); mutation.mutate(); }}>
+        <form autoComplete="off"
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setError('');
+            mutation.mutate();
+          }}>
           {error && <div role="alert" className="rounded-md bg-error-container px-md py-3 font-body-md text-body-md text-on-error-container">{error}</div>}
           <div>
             <label htmlFor="username" className="mb-1.5 block text-sm font-medium">Username</label>
             <div className="relative">
               <User size={20} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-outline" />
-              <input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required autoComplete="username"
-                className={inputCls} placeholder="admin" />
+              <input
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                className={inputCls}
+                placeholder="budi"
+              />
             </div>
           </div>
           <div>
             <label htmlFor="password" className="mb-1.5 block text-sm font-medium">Password</label>
             <div className="relative">
               <LockKey size={20} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-outline" />
-              <input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
-                required autoComplete="current-password"
-                className={inputCls + ' pr-11'} placeholder="••••••••" />
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={inputCls + ' pr-11'}
+                placeholder="••••••••"
+              />
               <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'} aria-pressed={showPassword}
                 className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-outline active:bg-surface-container-low dark:active:bg-white/5">
                 {showPassword ? <EyeSlash size={20} /> : <Eye size={20} />}

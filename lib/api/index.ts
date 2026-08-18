@@ -38,7 +38,7 @@ function crud<T>(path: string) {
   };
 }
 export const branchesApi = crud<Branch>('/branches');
-export const staffRolesApi = crud<StaffRole>('/staff-roles');
+export const staffRolesApi = crud<StaffRole>('/staffs/roles');
 export const staffsApi = crud<Staff>('/staffs');
 export const servicesApi = crud<Service>('/services');
 export const perfumesApi = crud<Perfume>('/perfume');
