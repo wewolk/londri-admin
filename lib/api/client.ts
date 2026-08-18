@@ -49,7 +49,21 @@ api.interceptors.response.use(
 );
 
 export function apiMessage(error: unknown): string {
-  if (axios.isAxiosError(error)) return error.response?.data?.message || error.message;
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    // Backend balas JSON dengan field message → ini kasus normal.
+    if (data && typeof data === 'object' && typeof (data as { message?: unknown }).message === 'string') {
+      return (data as { message: string }).message;
+    }
+    // Backend balas HTML/teks polos (mis. 404 default Express "Cannot GET ...")
+    // — biasanya karena endpoint salah/berubah, bukan kesalahan input user.
+    const status = error.response?.status;
+    if (status === 404) return 'Data atau endpoint tidak ditemukan (404). Kemungkinan ada perubahan di server.';
+    if (status && status >= 500) return `Server mengalami masalah (${status}). Coba lagi beberapa saat lagi.`;
+    if (status) return `Permintaan gagal (${status}).`;
+    // Tidak ada response sama sekali → network/CORS, bukan masalah auth/validasi.
+    return error.message || 'Tidak dapat terhubung ke server.';
+  }
   return error instanceof Error ? error.message : 'Terjadi kesalahan';
 }
 export function apiErrors(error: unknown): Record<string, string> {

@@ -38,11 +38,16 @@ function crud<T>(path: string) {
   };
 }
 export const branchesApi = crud<Branch>('/branches');
+// Backend memindahkan role staff ke bawah modul /staffs saat refactor modular
+// (lihat londri-be src/modules/staff/routes.js). Endpoint lama /staff-roles
+// sudah tidak ada — 404 kalau dipanggil.
 export const staffRolesApi = crud<StaffRole>('/staffs/roles');
 export const staffsApi = crud<Staff>('/staffs');
 export const servicesApi = crud<Service>('/services');
 export const perfumesApi = crud<Perfume>('/perfume');
-export const membershipTiersApi = crud<MembershipTier>('/membership-tiers');
+// Sama seperti staff-roles: tier membership sekarang di bawah modul
+// /memberships. Endpoint lama /membership-tiers sudah tidak ada.
+export const membershipTiersApi = crud<MembershipTier>('/memberships/tiers');
 export const promotionsApi = crud<Promotion>('/promotions');
 
 // Orders
@@ -101,15 +106,18 @@ export const membershipsApi = {
     api.get<ApiOk<MembershipTransaction[]>>(`/memberships/${id}/transactions`).then(unwrap),
 };
 
-// Attendance — note: backend param is "attendanceType" not "type"
+// Attendance — modul attendance digabung ke bawah /staffs saat refactor
+// modular backend (src/modules/staff/routes.js, prefix '/attendance' di
+// dalamnya). Endpoint lama /attendance/* (tanpa /staffs) sudah 404.
+// note: backend param is "attendanceType" not "type"
 export const attendanceApi = {
   list: (params: { staffId?: string; branchId?: string; attendanceType?: AttendanceType; date?: string; page?: number; limit?: number }) =>
-    api.get<ApiOk<Paginated<StaffAttendance>>>('/attendance', { params }).then(unwrap),
-  qrCodes: () => api.get<ApiOk<AttendanceQrCode[]>>('/attendance/qr-codes').then(unwrap),
+    api.get<ApiOk<Paginated<StaffAttendance>>>('/staffs/attendance', { params }).then(unwrap),
+  qrCodes: () => api.get<ApiOk<AttendanceQrCode[]>>('/staffs/attendance/qr-codes').then(unwrap),
   createQr: (branchId: string) =>
-    api.post<ApiOk<AttendanceQrCode>>('/attendance/qr-codes', { branchId }).then(unwrap),
+    api.post<ApiOk<AttendanceQrCode>>('/staffs/attendance/qr-codes', { branchId }).then(unwrap),
   deactivateQr: (id: string) =>
-    api.put<ApiOk<AttendanceQrCode>>(`/attendance/qr-codes/${id}/deactivate`).then(unwrap),
+    api.put<ApiOk<AttendanceQrCode>>(`/staffs/attendance/qr-codes/${id}/deactivate`).then(unwrap),
 };
 
 export interface WifiCredentialPayload {
@@ -120,15 +128,18 @@ export interface WifiCredentialPayload {
   isActive?: boolean;
 }
 
+// WiFi credential juga dipindah — sekarang di bawah modul /branches, bukan
+// /attendance. Endpoint lama /attendance/wifi 404 (ini penyebab error yang
+// dilaporkan user di halaman Attendance > WiFi).
 export const attendanceWifiApi = {
   list: (branchId: string, active?: boolean) =>
-    api.get<ApiOk<BranchWifiCredential[]>>('/attendance/wifi', { params: { branchId, active } }).then(unwrap),
+    api.get<ApiOk<BranchWifiCredential[]>>('/branches/wifi', { params: { branchId, active } }).then(unwrap),
   create: (body: WifiCredentialPayload) =>
-    api.post<ApiOk<BranchWifiCredential>>('/attendance/wifi', body).then(unwrap),
+    api.post<ApiOk<BranchWifiCredential>>('/branches/wifi', body).then(unwrap),
   update: (id: string, body: WifiCredentialPayload) =>
-    api.put<ApiOk<BranchWifiCredential>>(`/attendance/wifi/${id}`, body).then(unwrap),
+    api.put<ApiOk<BranchWifiCredential>>(`/branches/wifi/${id}`, body).then(unwrap),
   deactivate: (id: string, branchId: string) =>
-    api.delete<ApiOk<BranchWifiCredential>>(`/attendance/wifi/${id}`, { data: { branchId } }).then(unwrap),
+    api.delete<ApiOk<BranchWifiCredential>>(`/branches/wifi/${id}`, { data: { branchId } }).then(unwrap),
 };
 
 // Dashboard

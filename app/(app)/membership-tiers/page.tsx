@@ -7,7 +7,9 @@ import CardActions from '@/components/card-actions';
 export default function MembershipTiersPage() {
   return (
     <CrudPage<MembershipTier>
-      title="Tier Membership" endpoint="/membership-tiers" queryKey="membership-tiers" searchPlaceholder="Cari tier…"
+      // Endpoint backend dipindah ke /memberships/tiers saat refactor modular
+      // (src/modules/membership/routes.js). /membership-tiers lama sudah 404.
+      title="Tier Membership" endpoint="/memberships/tiers" queryKey="membership-tiers" searchPlaceholder="Cari tier…"
       initialForm={{ name: '', purchasePrice: '', balanceAmount: '', validityDays: '', description: '' }}
       fields={[
         { name: 'name', label: 'Nama Tier', placeholder: 'Silver', required: true },

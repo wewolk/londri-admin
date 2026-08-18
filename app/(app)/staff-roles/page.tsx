@@ -6,6 +6,8 @@ import CardActions from '@/components/card-actions';
 export default function StaffRolesPage() {
   return (
     <CrudPage<StaffRole>
+      // Endpoint backend dipindah ke /staffs/roles saat refactor modular
+      // (src/modules/staff/routes.js). /staff-roles lama sudah 404.
       title="Role Staff" endpoint="/staffs/roles" queryKey="roles" searchPlaceholder="Cari role…"
       initialForm={{ name: '', description: '' }}
       fields={[
