@@ -18,7 +18,7 @@ const modules = [
   { href: '/staff/roles', label: 'Role Staff', desc: 'Hak akses staff', Icon: ShieldCheck },
   { href: '/services', label: 'Layanan', desc: 'Jenis cucian & harga', Icon: TShirt },
   { href: '/perfumes', label: 'Parfum', desc: 'Kelola pilihan aroma laundry', Icon: Drop },
-  { href: '/membership-tiers', label: 'Tier Membership', desc: 'Paket member', Icon: Crown },
+  { href: '/memberships/tiers', label: 'Tier Membership', desc: 'Paket member', Icon: Crown },
   { href: '/promotions', label: 'Promo', desc: 'Kode diskon', Icon: Tag },
   { href: '/attendance', label: 'Presensi', desc: 'QR & log absensi', Icon: QrCode },
   { href: '/help', label: 'Bantuan', desc: 'Panduan & FAQ tiap fitur', Icon: Question },

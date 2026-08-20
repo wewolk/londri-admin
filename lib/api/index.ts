@@ -42,7 +42,7 @@ export const staffRolesApi = crud<StaffRole>('/staffs/roles');
 export const staffsApi = crud<Staff>('/staffs');
 export const servicesApi = crud<Service>('/services');
 export const perfumesApi = crud<Perfume>('/perfume');
-export const membershipTiersApi = crud<MembershipTier>('/membership-tiers');
+export const membershipTiersApi = crud<MembershipTier>('/memberships/tiers');
 export const promotionsApi = crud<Promotion>('/promotions');
 
 // Orders
